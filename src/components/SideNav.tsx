@@ -24,6 +24,7 @@ import {
   LuBell, // Notification
   LuMenu,
   LuShoppingCart,
+  LuX,
 } from "react-icons/lu";
 
 // Theme Colors derived from the image
@@ -38,9 +39,9 @@ const pages = [
   { id: 1, name: "Dashboard", icon: LuLayoutGrid, link: "/home" },
   { id: 2, name: "Marketplace", icon: LuStore, link: "/marketplace" },
   { id: 3, name: "News", icon: LuNewspaper, link: "/news" },
-  { id: 4, name: "Chatting", icon: LuMessageCircle, link: "/chat" },
-  { id: 5, name: "Setting", icon: LuSettings, link: "/settings" },
-  { id: 6, name: "Cart", icon: LuShoppingCart, link: "/cart" },
+  { id: 4, name: "Community", icon: LuMessageCircle, link: "/chat" },
+  { id: 5, name: "Cart", icon: LuShoppingCart, link: "/cart" },
+  { id: 6, name: "Settings", icon: LuSettings, link: "/settings" },
 ];
 
 function SideNav() {
@@ -80,6 +81,7 @@ function SideNav() {
               href={page.link}
               key={page.id}
               style={{ width: "100%", textDecoration: "none" }}
+              onClick={onClose}
             >
               <HStack
                 w="full"
@@ -192,7 +194,9 @@ function SideNav() {
               <Drawer.Body p={6}>
                 <SidebarContent />
               </Drawer.Body>
-              <Drawer.CloseTrigger />
+              <Drawer.CloseTrigger>
+                <LuX />
+              </Drawer.CloseTrigger>
             </Drawer.Content>
           </Drawer.Positioner>
         </Portal>

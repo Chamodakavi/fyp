@@ -50,14 +50,14 @@ function MarketplaceCard({ item }: { item: any }) {
           px={3}
           boxShadow="md"
         >
-          {item.tag}
+          {item.type}
         </Badge>
       </Box>
 
       {/* Content Section */}
       <Box p={4}>
         <Text fontSize="sm" color="gray.500" mb={1}>
-          {item.unit}
+          Package ({item.weight})
         </Text>
         <Heading size="md" color="#0F2B1D" mb={2}>
           {item.name}
@@ -65,7 +65,7 @@ function MarketplaceCard({ item }: { item: any }) {
 
         <Flex justify="space-between" align="center" mt={4}>
           <Text fontWeight="bold" fontSize="lg" color="#0F2B1D">
-            {item.price}
+            Rs.{item.price}.00
           </Text>
           <Button
             size="sm"
