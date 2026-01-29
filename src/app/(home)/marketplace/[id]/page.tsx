@@ -22,15 +22,17 @@ import {
   Share2,
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { ALL_ITEMS } from "@/data/data";
+import { useProducts } from "@/hooks/useProducts";
 
 function DetailedCardPage() {
   const router = useRouter();
   const params = useParams();
 
+  const { products, loading, error } = useProducts();
+
   // Find the item based on the URL ID
   // Note: params.id is a string, so we convert item.id to string for comparison
-  const item = ALL_ITEMS.find((i) => i.id.toString() === params.id);
+  const item = products.find((i) => i.id.toString() === params.id);
 
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(item?.image);
@@ -91,9 +93,9 @@ function DetailedCardPage() {
 
             {/* Thumbnails */}
             <Flex gap={4} justify="center">
-              {item.images?.map((img, idx) => (
+              {item.images?.map((img: string, id: number) => (
                 <Box
-                  key={idx}
+                  key={id}
                   w="80px"
                   h="80px"
                   borderRadius="xl"

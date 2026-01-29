@@ -39,7 +39,7 @@ const pages = [
   { id: 1, name: "Dashboard", icon: LuLayoutGrid, link: "/home" },
   { id: 2, name: "Marketplace", icon: LuStore, link: "/marketplace" },
   { id: 3, name: "News", icon: LuNewspaper, link: "/news" },
-  { id: 4, name: "Community", icon: LuMessageCircle, link: "/chat" },
+  { id: 4, name: "Community", icon: LuMessageCircle, link: "/community" },
   { id: 5, name: "Cart", icon: LuShoppingCart, link: "/cart" },
   { id: 6, name: "Settings", icon: LuSettings, link: "/settings" },
 ];
@@ -101,7 +101,7 @@ function SideNav() {
         </VStack>
 
         {/* Notifications Section */}
-        <Box mt={10}>
+        {/* <Box mt={10}>
           <HStack
             color={THEME.text}
             cursor="pointer"
@@ -113,7 +113,7 @@ function SideNav() {
             </Text>
             <LuBell size={20} />
           </HStack>
-        </Box>
+        </Box> */}
       </Box>
 
       {/* User Profile Card (Bottom) */}
