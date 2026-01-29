@@ -14,6 +14,7 @@ import {
 } from "@chakra-ui/react";
 import { ChevronRight, Search } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import React from "react";
 import {
   LuLayoutGrid, // Dashboard
@@ -25,6 +26,7 @@ import {
   LuMenu,
   LuShoppingCart,
   LuX,
+  LuLogOut,
 } from "react-icons/lu";
 
 // Theme Colors derived from the image
@@ -46,6 +48,12 @@ const pages = [
 
 function SideNav() {
   const { open, onOpen, onClose } = useDisclosure();
+  const router = useRouter();
+  const handleLogout = () => {
+    // Optional: Clear any stored user data/tokens here
+    localStorage.removeItem("user");
+    router.replace("/");
+  };
 
   const SidebarContent = () => (
     <Flex direction="column" h="full" w="full" justify="space-between">
@@ -138,13 +146,23 @@ function SideNav() {
             src="https://bit.ly/dan-abramov"
           />
         </Avatar.Root>
-        <Box flex={1} overflow="hidden">
-          <Text fontSize="xs" fontWeight="bold" color="green.900">
-            Chamoda Hapuarachchi
-          </Text>
-          <Text fontSize="2xs" color="green.800">
-            chamoda@gmail.com
-          </Text>
+        <Box flex={1} overflow="hidden" display={"flex"} gap={3}>
+          <Box>
+            <Text fontSize="xs" fontWeight="bold" color="green.900">
+              Chamoda Hapuarachchi
+            </Text>
+            <Text fontSize="2xs" color="green.800">
+              chamoda@gmail.com
+            </Text>
+          </Box>
+          <Box
+            mt={1}
+            onClick={handleLogout}
+            cursor="pointer" // Add pointer to show it's clickable
+            _hover={{ color: "red.500" }} // Optional: Visual feedback
+          >
+            <LuLogOut size={20} />
+          </Box>
         </Box>
       </HStack>
     </Flex>
