@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react"; // Import useEffect
 import {
   Box,
   Flex,
@@ -12,24 +12,18 @@ import {
   HStack,
   Separator,
   IconButton,
-  Input,
+  Spinner, // Import Spinner for loading state
+  Center,
 } from "@chakra-ui/react";
-import {
-  Trash2,
-  Minus,
-  Plus,
-  ArrowRight,
-  ShoppingBag,
-  ChevronLeft,
-} from "lucide-react";
+import { Trash2, Minus, Plus, ShoppingBag, ChevronLeft } from "lucide-react";
 import Link from "next/link";
+import { useCart } from "@/hooks/useCart";
 
 const THEME = {
   primary: "#0D2818",
   accent: "#D6E8D5",
   bg: "#f4fcf6",
 };
-
 // --- Dummy Data ---
 const initialCartItems = [
   {
@@ -60,9 +54,18 @@ const initialCartItems = [
     quantity: 1,
   },
 ];
-
 function CartPage() {
-  const [cartItems, setCartItems] = useState(initialCartItems);
+  const { cart, loading, error } = useCart();
+  const [cartItems, setCartItems] = useState<any[]>([]);
+
+  console.log(cartItems);
+
+  // --- FIX: Sync local state with fetched data ---
+  useEffect(() => {
+    if (cart && cart.length > 0) {
+      setCartItems(cart[0].items || []);
+    }
+  }, [cart]);
 
   // --- Logic Helpers ---
   const updateQuantity = (id: number, change: number) => {
@@ -81,12 +84,31 @@ function CartPage() {
     setCartItems((prevItems) => prevItems.filter((item) => item.id !== id));
   };
 
+  // Calculate totals
   const subtotal = cartItems.reduce(
     (acc, item) => acc + item.price * item.quantity,
     0,
   );
   const shipping = subtotal > 5000 ? 0 : 350;
   const total = subtotal + shipping;
+
+  // --- Loading State ---
+  if (loading) {
+    return (
+      <Center minH="100vh" bg={THEME.bg}>
+        <Spinner size="xl" color={THEME.primary} />
+      </Center>
+    );
+  }
+
+  // --- Error State ---
+  if (error) {
+    return (
+      <Center minH="100vh" bg={THEME.bg}>
+        <Text color="red.500">Error loading cart. Please try again.</Text>
+      </Center>
+    );
+  }
 
   // --- Empty State Component ---
   if (cartItems.length === 0) {
@@ -176,7 +198,7 @@ function CartPage() {
                     {item.name}
                   </Heading>
                   <Text fontWeight="bold" color={THEME.primary}>
-                    LKR {item.price.toLocaleString()}
+                    LKR {item.price?.toLocaleString() || 0}
                   </Text>
                 </Box>
 
