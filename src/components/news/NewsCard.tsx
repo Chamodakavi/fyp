@@ -29,8 +29,8 @@ const NewsCard = ({ news }: { news: any }) => {
           flexShrink={0}
         >
           <Image
-            src={news.image}
-            alt={news.title}
+            src={news.n_img}
+            alt={news.n_title}
             w="100%"
             h="100%"
             objectFit="cover"
@@ -48,22 +48,22 @@ const NewsCard = ({ news }: { news: any }) => {
                 px={2}
                 fontSize="0.7em"
               >
-                {news.category}
+                {news.n_type}
               </Badge>
               <Flex align="center" gap={4} fontSize="xs" color="gray.500">
                 <Flex align="center" gap={1}>
                   <Calendar size={12} />
-                  <Text>{news.date}</Text>
+                  <Text>{news.created_at}</Text>
                 </Flex>
               </Flex>
             </Flex>
 
             <Heading size="md" color="#0F2B1D" mb={2} lineHeight="shorter">
-              {news.title}
+              {news.n_title}
             </Heading>
 
             <Text fontSize="sm" color="gray.600">
-              {news.description}
+              {news.n_title}
             </Text>
           </Box>
 
