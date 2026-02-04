@@ -13,6 +13,8 @@ import {
   SimpleGrid,
   Icon,
 } from "@chakra-ui/react";
+// 👇 IMPORT TOASTER FROM YOUR SNIPPET
+import { toaster } from "@/components/ui/toaster";
 import {
   Minus,
   Plus,
@@ -23,47 +25,114 @@ import {
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useProducts } from "@/hooks/useProducts";
+import { useUser } from "@/hooks/useUser";
+import { createClient } from "@/utils/supabase/createClient";
+import { Check } from "lucide-react";
 
 function DetailedCardPage() {
   const router = useRouter();
   const params = useParams();
+  const supabase = createClient();
 
-  const { products, loading, error } = useProducts();
+  const { user } = useUser();
+  const { products } = useProducts();
 
-  // Find the item based on the URL ID
-  // Note: params.id is a string, so we convert item.id to string for comparison
   const item = products.find((i) => i.id.toString() === params.id);
 
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(item?.image);
+  const [isAdding, setIsAdding] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
-  // Update selected image if item loads (prevents hydration mismatch)
   useEffect(() => {
     if (item) setSelectedImage(item.image);
   }, [item]);
 
-  if (!item) {
-    return <Box p={10}>Item not found</Box>;
-  }
+  if (!item) return <Box p={10}>Loading or Item not found...</Box>;
 
   const handleIncrement = () => setQuantity((p) => p + 1);
   const handleDecrement = () => setQuantity((p) => (p > 1 ? p - 1 : 1));
 
+  const handleAddToCart = async () => {
+    if (!user) {
+      toaster.create({ title: "Please login first", type: "warning" });
+      router.push("/");
+      return;
+    }
+
+    setIsAdding(true);
+
+    try {
+      // 1. Check if item exists
+      const { data: existingItem, error: fetchError } = await supabase
+        .from("cart")
+        .select("id, qty")
+        .eq("user_id", user.id)
+        .eq("product_id", item.id)
+        .single();
+
+      if (fetchError && fetchError.code !== "PGRST116") {
+        throw fetchError;
+      }
+
+      let error;
+
+      if (existingItem) {
+        // 2. Update Quantity
+        const result = await supabase
+          .from("cart")
+          .update({ quantity: existingItem.qty + quantity })
+          .eq("id", existingItem.id);
+        error = result.error;
+      } else {
+        // 3. Insert New Row
+        const result = await supabase.from("cart").insert({
+          user_id: user.id,
+          product_id: item.id,
+          qty: quantity,
+        });
+        error = result.error;
+      }
+
+      // 🛑 CRITICAL CHECK: If DB says no, throw error immediately
+      if (error) throw error;
+
+      // 4. Success Toast
+      toaster.create({
+        title: "Added to Cart!",
+        type: "success",
+        duration: 2000,
+      });
+
+      setIsSuccess(true);
+      setTimeout(() => {
+        setIsSuccess(false);
+        // router.push("/cart");
+      }, 1000);
+    } catch (error: any) {
+      console.error("Cart Error:", error.message); // Check Console!
+      toaster.create({
+        title: "Error adding to cart",
+        description: error.message || "Database rejected the item",
+        type: "error",
+      });
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
   return (
     <Box minH="100vh" bg="#D4F2C4" p={{ base: 4, md: 8 }}>
-      {/* Back Button */}
       <Button
         onClick={() => router.back()}
         variant="ghost"
         color="#0F2B1D"
         mb={6}
-        _hover={{ bg: "rgba(15, 43, 29, 0)" }}
+        _hover={{ bg: "transparent", opacity: 0.7 }}
       >
-        <ArrowLeft />
-        Back to Marketplace
+        <ArrowLeft /> Back
       </Button>
 
-      {/* Main Content Card */}
       <Box
         bg="white"
         borderRadius="3xl"
@@ -73,42 +142,36 @@ function DetailedCardPage() {
         mx="auto"
       >
         <Flex direction={{ base: "column", md: "row" }}>
-          {/* LEFT: Image Gallery */}
+          {/* LEFT: Image Section */}
           <Box w={{ base: "100%", md: "50%" }} bg="#FDF6E3" p={8}>
             <Box
               borderRadius="2xl"
               overflow="hidden"
               h={{ base: "300px", md: "450px" }}
               mb={4}
-              boxShadow="lg"
             >
               <Image
-                src={selectedImage}
+                src={selectedImage || item.image}
                 alt={item.name}
                 w="100%"
                 h="100%"
                 objectFit="cover"
               />
             </Box>
-
-            {/* Thumbnails */}
             <Flex gap={4} justify="center">
-              {item.images?.map((img: string, id: number) => (
+              {(item.images || [item.image]).map((img: string, id: number) => (
                 <Box
                   key={id}
                   w="80px"
                   h="80px"
                   borderRadius="xl"
-                  overflow="hidden"
-                  cursor="pointer"
                   border="2px solid"
                   borderColor={
                     selectedImage === img ? "#0F2B1D" : "transparent"
                   }
                   opacity={selectedImage === img ? 1 : 0.6}
                   onClick={() => setSelectedImage(img)}
-                  transition="all 0.2s"
-                  _hover={{ opacity: 1, transform: "scale(1.05)" }}
+                  cursor="pointer"
                 >
                   <Image src={img} w="100%" h="100%" objectFit="cover" />
                 </Box>
@@ -116,25 +179,19 @@ function DetailedCardPage() {
             </Flex>
           </Box>
 
-          {/* RIGHT: Details */}
+          {/* RIGHT: Details Section */}
           <Box w={{ base: "100%", md: "50%" }} p={{ base: 6, md: 10 }}>
-            <Flex justify="space-between" align="start" mb={2}>
+            <Flex justify="space-between" mb={2}>
               <Badge
-                colorScheme={item.colorScheme}
-                fontSize="0.9em"
-                px={3}
-                py={1}
+                colorPalette={item.colorScheme || "green"} // colorScheme -> colorPalette in v3
                 borderRadius="full"
+                px={3}
               >
-                {item.tag}
+                {item.tag || item.category}
               </Badge>
               <Flex gap={2}>
-                <IconButton aria-label="Share" variant="ghost">
-                  <Share2 />
-                </IconButton>
-                <IconButton aria-label="Like" variant="ghost">
-                  <Heart size={20} />
-                </IconButton>
+                <Share2 size={20} />
+                <Heart size={20} />
               </Flex>
             </Flex>
 
@@ -144,16 +201,14 @@ function DetailedCardPage() {
             <Text fontSize="lg" color="gray.500" mb={6}>
               {item.unit}
             </Text>
-
             <Text fontSize="3xl" fontWeight="bold" color="#0F2B1D" mb={6}>
-              {item.price}
+              LKR {item.price?.toLocaleString()}
+            </Text>
+            <Text color="gray.600" fontSize="lg" mb={8}>
+              {item.description || "No description available."}
             </Text>
 
-            <Text color="gray.600" fontSize="lg" lineHeight="1.8" mb={8}>
-              {item.description}
-            </Text>
-
-            {/* Quantity Selector */}
+            {/* Quantity */}
             <Box mb={8}>
               <Text fontWeight="bold" mb={3} color="#0F2B1D">
                 Quantity
@@ -170,7 +225,7 @@ function DetailedCardPage() {
                   aria-label="Decrease"
                   variant="ghost"
                   onClick={handleDecrement}
-                  color="#0F2B1D"
+                  disabled={quantity <= 1}
                 >
                   <Minus size={18} />
                 </IconButton>
@@ -181,31 +236,37 @@ function DetailedCardPage() {
                   aria-label="Increase"
                   variant="ghost"
                   onClick={handleIncrement}
-                  color="#0F2B1D"
                 >
                   <Plus size={18} />
                 </IconButton>
               </Flex>
             </Box>
 
-            {/* Action Buttons */}
-            <Flex gap={4} direction={{ base: "column", sm: "row" }}>
-              <Button
-                flex={1}
-                size="lg"
-                bg="#0F2B1D"
-                color="white"
-                _hover={{ bg: "#1a4a32" }}
-                h="56px"
-                fontSize="lg"
-                borderRadius={10}
-              >
-                <Icon as={ShoppingCart} />
-                Add to Cart
-              </Button>
-            </Flex>
+            {/* Add to Cart Button */}
+            <Button
+              w="full"
+              size="lg"
+              h="56px"
+              borderRadius={10}
+              bg={isSuccess ? "green.500" : "#0F2B1D"}
+              color="white"
+              _hover={{ bg: isSuccess ? "green.600" : "#1a4a32" }}
+              onClick={handleAddToCart}
+              loading={isAdding} // isLoading -> loading in v3
+              loadingText="Adding..."
+              disabled={isSuccess}
+            >
+              {isSuccess ? (
+                <>
+                  <Icon as={Check} mr={2} boxSize={6} /> Added!
+                </>
+              ) : (
+                <>
+                  <Icon as={ShoppingCart} mr={2} /> Add to Cart
+                </>
+              )}
+            </Button>
 
-            {/* Additional Info Box (Optional) */}
             <SimpleGrid
               columns={2}
               gap={4}
@@ -222,7 +283,7 @@ function DetailedCardPage() {
               </Box>
               <Box>
                 <Text color="gray.400" fontSize="sm">
-                  Return Policy
+                  Returns
                 </Text>
                 <Text fontWeight="medium">30 Days</Text>
               </Box>

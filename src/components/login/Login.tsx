@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import {
   Box,
   Flex,
@@ -11,14 +11,19 @@ import {
   InputGroup,
   Checkbox,
   Stack,
-  Link,
+  Link as ChakraLink,
   Image,
   Container,
   AbsoluteCenter,
+  Alert,
+  AlertTitle,
 } from "@chakra-ui/react";
-import { User, Lock, Eye } from "lucide-react";
+import { User, Lock, Eye, EyeOff } from "lucide-react";
+import { createClient } from "@/utils/supabase/createClient";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
-// Custom Google Icon Component since Lucide doesn't include brand logos
+// Custom Google Icon
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" width="20px" height="20px" {...props}>
     <g fill="none" fillRule="evenodd">
@@ -43,6 +48,40 @@ const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
 );
 
 function Login() {
+  const router = useRouter();
+  const supabase = createClient();
+
+  // --- STATE MANAGEMENT ---
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
+  // --- LOGIN LOGIC ---
+  const handleLogin = async () => {
+    setLoading(true);
+    setErrorMsg("");
+
+    // 1. Supabase Auth Check
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    });
+
+    if (error) {
+      // 2. Handle Mismatch / Error
+      console.error("Login failed:", error.message);
+      setErrorMsg("Invalid email or password. Please try again.");
+      setLoading(false);
+    } else {
+      // 3. Success -> Redirect
+      console.log("Login success:", data);
+      router.push("/home"); // Redirect to your dashboard
+      router.refresh(); // Ensure layout updates
+    }
+  };
+
   return (
     <Flex
       minH="100vh"
@@ -57,10 +96,9 @@ function Login() {
         align="center"
         justify="center"
         p={8}
-        display={{ base: "none", md: "flex" }} // Hidden on small mobile for better UX, or change to 'flex' to show
+        display={{ base: "none", md: "flex" }}
       >
         <Image
-          // Replace this src with your actual uploaded image path or import
           src="https://placehold.co/600x600/e2e8f0/386641?text=Farm+Illustration"
           alt="Farmer Illustration"
           objectFit="contain"
@@ -90,46 +128,59 @@ function Login() {
                 Welcome Back
               </Heading>
               <Text color="gray.500" fontSize="lg">
-                login in your account
+                Login to your account
               </Text>
             </Box>
 
+            {/* Error Message Alert */}
+            {errorMsg && (
+              <Alert.Root status="error" borderRadius="md">
+                <Alert.Indicator />
+                <AlertTitle>{errorMsg}</AlertTitle>
+              </Alert.Root>
+            )}
+
             {/* Form Fields */}
             <Stack gap={5}>
-              {/* Username Input */}
+              {/* Email Input */}
               <InputGroup startElement={<User color="#2F4F2F" size={20} />}>
                 <Input
-                  type="text"
-                  placeholder="user name / email"
+                  type="email"
+                  placeholder="Email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   _placeholder={{ color: "green.800", opacity: 0.6 }}
-                  bg="green.200" // Muted sage green background
+                  bg="green.200"
                   border="none"
                   borderRadius="full"
                   color="green.900"
-                  _focus={{
-                    bg: "green.100",
-                    boxShadow: "0 0 0 2px #386641",
-                  }}
+                  _focus={{ bg: "green.100", boxShadow: "0 0 0 2px #386641" }}
                 />
               </InputGroup>
 
               {/* Password Input */}
               <InputGroup
                 startElement={<Lock color="#2F4F2F" size={20} />}
-                endElement={<Eye size={20} />}
+                endElement={
+                  <Box
+                    cursor="pointer"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </Box>
+                }
               >
                 <Input
-                  type="password"
-                  placeholder="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   _placeholder={{ color: "green.800", opacity: 0.6 }}
                   bg="green.200"
                   border="none"
                   borderRadius="full"
                   color="green.900"
-                  _focus={{
-                    bg: "green.100",
-                    boxShadow: "0 0 0 2px #386641",
-                  }}
+                  _focus={{ bg: "green.100", boxShadow: "0 0 0 2px #386641" }}
                 />
               </InputGroup>
 
@@ -138,26 +189,27 @@ function Login() {
                 <Checkbox.Root colorScheme="green" defaultChecked>
                   <Text color="gray.600">Remember me</Text>
                 </Checkbox.Root>
-                <Link color="gray.500" href="#">
-                  forget password?
-                </Link>
+                <ChakraLink color="gray.500" href="#">
+                  Forgot password?
+                </ChakraLink>
               </Flex>
 
               {/* Sign In Button */}
-              <Link href="/home" style={{ width: "100%", display: "block" }}>
-                <Button
-                  width="full"
-                  size="lg"
-                  bg="green.700"
-                  color="white"
-                  borderRadius="full"
-                  _hover={{ bg: "green.800" }}
-                  fontSize="md"
-                  boxShadow="lg"
-                >
-                  Sign in
-                </Button>
-              </Link>
+              <Button
+                width="full"
+                size="lg"
+                bg="green.700"
+                color="white"
+                borderRadius="full"
+                _hover={{ bg: "green.800" }}
+                fontSize="md"
+                boxShadow="lg"
+                onClick={handleLogin} // Call the function
+                loading={loading} // Show spinner
+                loadingText="Signing in..."
+              >
+                Sign in
+              </Button>
 
               {/* Divider */}
               <Box position="relative" py={2}>
@@ -171,7 +223,7 @@ function Login() {
                 </AbsoluteCenter>
               </Box>
 
-              {/* Google Button */}
+              {/* Google Button (Placeholder action) */}
               <Button
                 size="lg"
                 variant="outline"
@@ -189,8 +241,11 @@ function Login() {
 
             {/* Footer */}
             <Text alignContent="center" fontSize="sm" color="gray.500" mt={4}>
-              create account ?{" "}
-              <Link color="green.700" fontWeight="bold" href="/signup">
+              Don't have an account?{" "}
+              <Link
+                href="/signup"
+                style={{ color: "#276749", fontWeight: "bold" }}
+              >
                 Sign up
               </Link>
             </Text>

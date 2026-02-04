@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react"; // Import useEffect
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Flex,
@@ -12,62 +12,53 @@ import {
   HStack,
   Separator,
   IconButton,
-  Spinner, // Import Spinner for loading state
+  Spinner,
   Center,
 } from "@chakra-ui/react";
-import { Trash2, Minus, Plus, ShoppingBag, ChevronLeft } from "lucide-react";
+import { Trash2, Minus, Plus, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 import { useCart } from "@/hooks/useCart";
+import { useProducts } from "@/hooks/useProducts";
+import { createClient } from "@/utils/supabase/createClient"; // Import Supabase Client
 
 const THEME = {
   primary: "#0D2818",
   accent: "#D6E8D5",
   bg: "#f4fcf6",
 };
-// --- Dummy Data ---
-const initialCartItems = [
-  {
-    id: 1,
-    name: "Organic Carrots (1kg)",
-    category: "Vegetables",
-    price: 450,
-    image:
-      "https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?auto=format&fit=crop&w=300&q=80",
-    quantity: 2,
-  },
-  {
-    id: 2,
-    name: "Red Pumpkin",
-    category: "Vegetables",
-    price: 300,
-    image:
-      "https://images.unsplash.com/photo-1570586437263-ab629fccc818?auto=format&fit=crop&w=300&q=80",
-    quantity: 1,
-  },
-  {
-    id: 3,
-    name: "NPK Fertilizer (5kg)",
-    category: "Supplies",
-    price: 2500,
-    image:
-      "https://images.unsplash.com/photo-1628157588553-53970aa6b315?auto=format&fit=crop&w=300&q=80",
-    quantity: 1,
-  },
-];
+
 function CartPage() {
-  const { cart, loading, error } = useCart();
+  const supabase = createClient(); // Initialize Supabase
+  const { cart, loading: cartLoading } = useCart();
+  const { products, loading: productsLoading } = useProducts();
+
   const [cartItems, setCartItems] = useState<any[]>([]);
 
-  console.log(cartItems);
-
-  // --- FIX: Sync local state with fetched data ---
+  // --- MERGING LOGIC ---
   useEffect(() => {
-    if (cart && cart.length > 0) {
-      setCartItems(cart[0].items || []);
-    }
-  }, [cart]);
+    if (cart && products && products.length > 0) {
+      const mergedItems = cart
+        .map((cartItem: any) => {
+          const productDetails = products.find(
+            (p) => String(p.id) === String(cartItem.product_id),
+          );
 
-  // --- Logic Helpers ---
+          if (productDetails) {
+            return {
+              ...productDetails,
+              quantity: cartItem.qty || cartItem.quantity, // Handle 'qty' vs 'quantity'
+              cart_row_id: cartItem.id, // ID of the row in the 'cart' table (needed for delete)
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      setCartItems(mergedItems);
+    }
+  }, [cart, products]);
+
+  // --- UPDATE QUANTITY LOCAL ONLY (Optional: Add Supabase update here if needed) ---
   const updateQuantity = (id: number, change: number) => {
     setCartItems((prevItems) =>
       prevItems.map((item) => {
@@ -80,20 +71,41 @@ function CartPage() {
     );
   };
 
-  const removeItem = (id: number) => {
-    setCartItems((prevItems) => prevItems.filter((item) => item.id !== id));
+  // --- DELETE ITEM (DATABASE + UI) ---
+  const handleRemoveItem = async (product_id: number, cart_row_id: number) => {
+    // 1. Optimistic UI Update (Remove immediately from screen)
+    setCartItems((prevItems) =>
+      prevItems.filter((item) => item.id !== product_id),
+    );
+
+    try {
+      // 2. Delete from Supabase Database
+      const { error } = await supabase
+        .from("cart")
+        .delete()
+        .eq("id", cart_row_id); // Use the cart row ID, not product ID
+
+      if (error) {
+        console.error("Error deleting item:", error);
+        alert("Failed to delete item from database.");
+        // Optional: Re-fetch or revert UI if failed
+      } else {
+        console.log("Item deleted successfully");
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   // Calculate totals
   const subtotal = cartItems.reduce(
-    (acc, item) => acc + item.price * item.quantity,
+    (acc, item) => acc + (item.price || 0) * item.quantity,
     0,
   );
   const shipping = subtotal > 5000 ? 0 : 350;
   const total = subtotal + shipping;
 
-  // --- Loading State ---
-  if (loading) {
+  if (cartLoading || productsLoading) {
     return (
       <Center minH="100vh" bg={THEME.bg}>
         <Spinner size="xl" color={THEME.primary} />
@@ -101,16 +113,6 @@ function CartPage() {
     );
   }
 
-  // --- Error State ---
-  if (error) {
-    return (
-      <Center minH="100vh" bg={THEME.bg}>
-        <Text color="red.500">Error loading cart. Please try again.</Text>
-      </Center>
-    );
-  }
-
-  // --- Empty State Component ---
   if (cartItems.length === 0) {
     return (
       <Box
@@ -128,8 +130,7 @@ function CartPage() {
             Your Cart is Empty
           </Heading>
           <Text color="gray.600" maxW="md">
-            Looks like you haven't added any fresh produce or supplies yet. Head
-            over to the marketplace to start shopping!
+            Head over to the marketplace to start shopping!
           </Text>
           <Link href={"/marketplace"}>
             <Button
@@ -149,7 +150,6 @@ function CartPage() {
   return (
     <Box minH="100vh" bg={THEME.bg} p={{ base: 4, md: 8 }}>
       <Box maxW="1200px" mx="auto">
-        {/* Header */}
         <HStack mb={8} justify="space-between">
           <Heading color={THEME.primary} size="xl">
             Shopping Cart ({cartItems.length})
@@ -157,7 +157,7 @@ function CartPage() {
         </HStack>
 
         <Flex gap={8} direction={{ base: "column", lg: "row" }}>
-          {/* ---  Cart Items List --- */}
+          {/* Cart Items List */}
           <VStack flex="2" align="stretch" gap={4}>
             {cartItems.map((item) => (
               <Flex
@@ -181,7 +181,11 @@ function CartPage() {
                   h="100px"
                 >
                   <Image
-                    src={item.image}
+                    src={
+                      item.image_links ||
+                      item.image ||
+                      "https://placehold.co/100"
+                    }
                     alt={item.name}
                     w="full"
                     h="full"
@@ -240,27 +244,17 @@ function CartPage() {
                     color="red.500"
                     aria-label="Remove item"
                     _hover={{ bg: "red.50" }}
-                    onClick={() => removeItem(item.id)}
+                    // PASS BOTH ID's: Product ID (for UI) & Cart Row ID (for DB)
+                    onClick={() => handleRemoveItem(item.id, item.cart_row_id)}
                   >
                     <Trash2 size={18} />
                   </IconButton>
                 </HStack>
               </Flex>
             ))}
-
-            <Link href="/marketplace">
-              <Button
-                variant="ghost"
-                justifyContent="start"
-                w="fit-content"
-                color="gray.600"
-              >
-                <ChevronLeft size={18} /> Continue Shopping
-              </Button>
-            </Link>
           </VStack>
 
-          {/* --- Order Summary --- */}
+          {/* Order Summary */}
           <Box flex="1" w="full">
             <Box
               bg="white"
@@ -289,9 +283,7 @@ function CartPage() {
                     {shipping === 0 ? "Free" : `LKR ${shipping}`}
                   </Text>
                 </HStack>
-
                 <Separator borderColor="gray.200" />
-
                 <HStack justify="space-between" fontSize="lg" fontWeight="bold">
                   <Text color="gray.800">Total</Text>
                   <Text color={THEME.primary}>
@@ -311,10 +303,6 @@ function CartPage() {
               >
                 Checkout
               </Button>
-
-              <Text fontSize="xs" color="gray.500" mt={4} textAlign="center">
-                Secure checkout powered by PayHere
-              </Text>
             </Box>
           </Box>
         </Flex>

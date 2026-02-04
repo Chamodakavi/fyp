@@ -28,6 +28,9 @@ import {
   LuX,
   LuLogOut,
 } from "react-icons/lu";
+import { useUser } from "@/hooks/useUser";
+import { createClient } from "@/utils/supabase/createClient";
+import { Skeleton } from "@chakra-ui/react";
 
 // Theme Colors derived from the image
 const THEME = {
@@ -49,6 +52,9 @@ const pages = [
 function SideNav() {
   const { open, onOpen, onClose } = useDisclosure();
   const router = useRouter();
+  const supabase = createClient();
+  const { user, loading } = useUser();
+
   const handleLogout = () => {
     // Optional: Clear any stored user data/tokens here
     localStorage.removeItem("user");
@@ -147,19 +153,35 @@ function SideNav() {
           />
         </Avatar.Root>
         <Box flex={1} overflow="hidden" display={"flex"} gap={3}>
-          <Box>
-            <Text fontSize="xs" fontWeight="bold" color="green.900">
-              Chamoda Hapuarachchi
-            </Text>
-            <Text fontSize="2xs" color="green.800">
-              chamoda@gmail.com
-            </Text>
+          <Box flex={1}>
+            {/* 4. Dynamic Data with Loading State */}
+            {loading ? (
+              <VStack align="start" gap={1}>
+                <Skeleton height="12px" width="80px" />
+                <Skeleton height="10px" width="100px" />
+              </VStack>
+            ) : (
+              <>
+                <Text
+                  fontSize="xs"
+                  fontWeight="bold"
+                  color="green.900"
+                  truncate
+                >
+                  {user?.u_name || "Guest User"}
+                </Text>
+                <Text fontSize="2xs" color="green.800" truncate>
+                  {user?.u_email || "No Email"}
+                </Text>
+              </>
+            )}
           </Box>
+
           <Box
             mt={1}
             onClick={handleLogout}
-            cursor="pointer" // Add pointer to show it's clickable
-            _hover={{ color: "red.500" }} // Optional: Visual feedback
+            cursor="pointer"
+            _hover={{ color: "red.500" }}
           >
             <LuLogOut size={20} />
           </Box>

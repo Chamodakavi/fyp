@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import {
   Box,
   Flex,
@@ -10,13 +10,74 @@ import {
   Button,
   InputGroup,
   Stack,
-  Link,
+  Link as ChakraLink,
   Image,
   Container,
 } from "@chakra-ui/react";
-import { User, Lock, Eye, Mail } from "lucide-react";
+import { Alert } from "@chakra-ui/react";
+import { User, Lock, Eye, EyeOff, Mail } from "lucide-react";
+import { createClient } from "@/utils/supabase/createClient";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 function SignUp() {
+  const router = useRouter();
+  const supabase = createClient();
+
+  // --- STATES ---
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
+  // --- LOGIC ---
+  const handleSignUp = async () => {
+    setLoading(true);
+    setErrorMsg("");
+
+    const cleanEmail = email.trim().toLowerCase().replace(/\s+/g, "");
+    const cleanUsername = username.trim();
+
+    if (!cleanEmail || !password || !cleanUsername) {
+      setErrorMsg("Please fill in all fields.");
+      setLoading(false);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMsg("Passwords do not match.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: {
+          data: {
+            username: cleanUsername,
+            full_name: cleanUsername,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      setSuccessMsg("Account created successfully!");
+      router.push("/");
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Flex
       minH="100vh"
@@ -50,8 +111,6 @@ function SignUp() {
         bg="white"
         position="relative"
       >
-        {/* Optional: Decorative leaves could go here with absolute positioning */}
-
         <Container maxW="md">
           <Stack gap={6}>
             {/* Header */}
@@ -70,6 +129,19 @@ function SignUp() {
               </Text>
             </Box>
 
+            {errorMsg && (
+              <Alert.Root status="error" borderRadius="md">
+                <Alert.Indicator />
+                <Alert.Title>{errorMsg}</Alert.Title>
+              </Alert.Root>
+            )}
+            {successMsg && (
+              <Alert.Root status="error" borderRadius="md">
+                <Alert.Indicator />
+                <Alert.Title>{successMsg}</Alert.Title>
+              </Alert.Root>
+            )}
+
             {/* Form Fields */}
             <Stack gap={5}>
               {/* Username Input */}
@@ -77,6 +149,8 @@ function SignUp() {
                 <Input
                   type="text"
                   placeholder="user name"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   _placeholder={{ color: "green.800", opacity: 0.6 }}
                   bg="green.200"
                   border="none"
@@ -89,11 +163,13 @@ function SignUp() {
                 />
               </InputGroup>
 
-              {/* Email Input (New) */}
+              {/* Email Input */}
               <InputGroup startElement={<Mail color="#2F4F2F" size={20} />}>
                 <Input
                   type="email"
                   placeholder="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   _placeholder={{ color: "green.800", opacity: 0.6 }}
                   bg="green.200"
                   border="none"
@@ -109,11 +185,20 @@ function SignUp() {
               {/* Password Input */}
               <InputGroup
                 startElement={<Lock color="#2F4F2F" size={20} />}
-                endElement={<Eye size={20} />}
+                endElement={
+                  <Box
+                    cursor="pointer"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </Box>
+                }
               >
                 <Input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   _placeholder={{ color: "green.800", opacity: 0.6 }}
                   bg="green.200"
                   border="none"
@@ -126,14 +211,13 @@ function SignUp() {
                 />
               </InputGroup>
 
-              {/* Confirm Password Input (New) */}
-              <InputGroup
-                startElement={<Lock color="#2F4F2F" size={20} />}
-                endElement={<Eye size={20} />}
-              >
+              {/* Confirm Password Input */}
+              <InputGroup startElement={<Lock color="#2F4F2F" size={20} />}>
                 <Input
                   type="password"
                   placeholder="confirm password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   _placeholder={{ color: "green.800", opacity: 0.6 }}
                   bg="green.200"
                   border="none"
@@ -147,7 +231,6 @@ function SignUp() {
               </InputGroup>
 
               {/* Register Button */}
-              {/* Used "Sign Up" for clarity, though image had a typo "Sign in" */}
               <Button
                 size="lg"
                 bg="green.700"
@@ -157,6 +240,9 @@ function SignUp() {
                 fontSize="md"
                 boxShadow="lg"
                 mt={2}
+                onClick={handleSignUp}
+                loading={loading}
+                loadingText="Creating Account..."
               >
                 Sign Up
               </Button>
@@ -165,10 +251,10 @@ function SignUp() {
             {/* Footer */}
             <Box textAlign="center" fontSize="sm" color="gray.500" mt={4}>
               Already have an account?{" "}
-              <Link href="/" style={{ textDecoration: "none" }}>
-                <span style={{ color: "green", fontWeight: "bold" }}>
+              <Link href="/" passHref>
+                <ChakraLink as="span" color="green.700" fontWeight="bold">
                   Sign in
-                </span>
+                </ChakraLink>
               </Link>
             </Box>
           </Stack>
