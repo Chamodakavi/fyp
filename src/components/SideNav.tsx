@@ -11,6 +11,7 @@ import {
   useDisclosure,
   Avatar,
   Flex,
+  Image,
 } from "@chakra-ui/react";
 import { ChevronRight, Search } from "lucide-react";
 import Link from "next/link";
@@ -64,9 +65,14 @@ function SideNav() {
   const SidebarContent = () => (
     <Flex direction="column" h="full" w="full" justify="space-between">
       <Box>
-        <HStack my={5} px={5} color={"white"}>
-          Logo Details here
-        </HStack>
+        <Link href={"/home"} style={{ textDecoration: "none" }}>
+          <HStack my={5} color={"white"} cursor={"pointer"}>
+            <Image w={20} objectFit={"contain"} src={"/images/logo.png"} />
+            <Text fontWeight={"bold"} fontSize={"3xl"}>
+              Farmer
+            </Text>
+          </HStack>
+        </Link>
         {/* Search Bar */}
         <HStack
           w="full"
