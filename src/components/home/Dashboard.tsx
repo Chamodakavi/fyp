@@ -13,6 +13,7 @@ import {
   Badge,
 } from "@chakra-ui/react";
 import { Wind, Droplets } from "lucide-react";
+import CropRegistrationForm from "../RegistrationForm/CropRegistrationForm";
 
 // Reusable card component for consistency
 interface DashboardCardProps {
@@ -187,6 +188,7 @@ function Dashboard() {
             imageSrc="https://placehold.co/60x60/FEB2B2/C53030?text=Tomato"
           />
         </VStack>
+        <CropRegistrationForm />
       </SimpleGrid>
     </Box>
   );
