@@ -1,7 +1,7 @@
 "use client";
 
-import Login from "@/components/login/Login";
+import Landing from "@/components/land/Landing";
 
 export default function Home() {
-  return <Login />;
+  return <Landing />;
 }
