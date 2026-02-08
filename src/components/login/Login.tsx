@@ -58,27 +58,51 @@ function Login() {
   const [errorMsg, setErrorMsg] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-  // --- LOGIN LOGIC ---
+  // --- LOGIN LOGIC (UPDATED) ---
   const handleLogin = async () => {
     setLoading(true);
     setErrorMsg("");
 
-    // 1. Supabase Auth Check
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password,
-    });
+    try {
+      // 1. Authenticate with Supabase Auth
+      const { data: authData, error: authError } =
+        await supabase.auth.signInWithPassword({
+          email: email,
+          password: password,
+        });
 
-    if (error) {
-      // 2. Handle Mismatch / Error
+      if (authError) throw authError;
+
+      // 2. Login Successful -> Now Check Role in DB
+      if (authData.user) {
+        const { data: userData, error: userError } = await supabase
+          .from("users")
+          .select("u_role")
+          .eq("id", authData.user.id) // Uses 'id' to link to auth
+          .single();
+
+        if (userError) {
+          console.error("Error fetching role:", userError);
+          // If we can't find the role, default to home for safety
+          router.push("/home");
+        } else {
+          // 3. Redirect based on Role
+          const role = userData?.u_role;
+
+          if (role === "admin") {
+            router.push("/admin/dashboard");
+          } else {
+            router.push("/home");
+          }
+        }
+
+        router.refresh();
+      }
+    } catch (error: any) {
       console.error("Login failed:", error.message);
       setErrorMsg("Invalid email or password. Please try again.");
+    } finally {
       setLoading(false);
-    } else {
-      // 3. Success -> Redirect
-      console.log("Login success:", data);
-      router.push("/home"); // Redirect to your dashboard
-      router.refresh(); // Ensure layout updates
     }
   };
 

@@ -2,16 +2,15 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  // 1. Initialize Response
+  console.log(`🔥 MIDDLEWARE HIT: ${request.nextUrl.pathname}`);
+
   let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+    request: { headers: request.headers },
   });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!,
     {
       cookies: {
         get(name: string) {
@@ -35,52 +34,35 @@ export async function middleware(request: NextRequest) {
     },
   );
 
-  // 2. ✅ Use getUser (Safer for Server Middleware)
+  // 1. SECURITY: Use getUser(), not getSession()
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   const url = request.nextUrl.clone();
-  const isAdminPath = url.pathname.startsWith("/admin");
-  const isAuthPage =
-    url.pathname === "/" ||
-    url.pathname === "/login" ||
-    url.pathname === "/signup";
 
-  // --- SCENARIO 1: NOT LOGGED IN ---
-  if (!user) {
-    if (!isAuthPage) {
-      url.pathname = "/login";
+  // 2. LOGIC: Block non-admins from /admin
+  if (url.pathname.startsWith("/admin")) {
+    // A. No User? -> Login
+    if (!user) {
+      url.pathname = "/";
       return NextResponse.redirect(url);
     }
-    return response;
-  }
 
-  // --- SCENARIO 2: LOGGED IN ---
-  if (user) {
-    // 3. ✅ FETCH REAL ROLE FROM YOUR DB
-    // We cannot trust app_metadata because it's empty.
+    // B. Have User? -> Check DB Role
     const { data: dbUser } = await supabase
       .from("users")
       .select("u_role")
-      .eq("u_id", user.id)
+      .eq("id", user.id)
       .single();
 
-    // Default to 'user' if something goes wrong
     const role = dbUser?.u_role || "user";
 
-    // Rule A: Redirect logged-in users away from Login/Home
-    if (isAuthPage) {
-      if (role === "admin") {
-        url.pathname = "/admin/dashboard";
-      } else {
-        url.pathname = "/home";
-      }
-      return NextResponse.redirect(url);
-    }
+    // Debugging (Check your Server Terminal)
+    console.log(`Middleware Check -> Path: ${url.pathname} | Role: ${role}`);
 
-    // Rule B: Protect Admin Dashboard
-    if (isAdminPath && role !== "admin") {
+    // C. Not Admin? -> Kick to Home
+    if (role !== "admin") {
       url.pathname = "/home";
       return NextResponse.redirect(url);
     }
@@ -89,9 +71,9 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
-// Config matches everything except static files
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|images|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // Match everything except static files
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
