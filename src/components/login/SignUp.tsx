@@ -63,6 +63,7 @@ function SignUp() {
           data: {
             username: cleanUsername,
             full_name: cleanUsername,
+            role: "user",
           },
         },
       });
