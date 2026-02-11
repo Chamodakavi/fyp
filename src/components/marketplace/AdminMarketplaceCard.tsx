@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Box,
   Flex,
@@ -17,18 +17,12 @@ import {
   Portal,
   NativeSelect,
   Spinner,
-  createToaster,
-  Toaster,
-  Dialog, // Added for Delete Confirmation
+  Dialog,
+  Alert, // ✅ Added Alert Component
 } from "@chakra-ui/react";
 import { Plus, Pencil, Trash2, Image as ImageIcon, X } from "lucide-react";
 import { useProducts } from "@/hooks/useProducts";
 import { createClient } from "@/utils/supabase/createClient";
-
-const toaster = createToaster({
-  placement: "top-end",
-  pauseOnPageIdle: true,
-});
 
 function AdminMarketplaceCard() {
   const { products, loading } = useProducts();
@@ -37,11 +31,18 @@ function AdminMarketplaceCard() {
 
   // --- STATE ---
   const [isOpen, setIsOpen] = useState(false);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false); // For Delete Dialog
-  const [productToDelete, setProductToDelete] = useState<any>(null); // Track item to delete
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
+
+  // ✅ New Simple Alert State
+  const [status, setStatus] = useState<{
+    type: "success" | "error";
+    title: string;
+    description?: string;
+  } | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -55,9 +56,18 @@ function AdminMarketplaceCard() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
 
+  // ✅ Auto-hide alert after 5 seconds
+  useEffect(() => {
+    if (status) {
+      const timer = setTimeout(() => setStatus(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [status]);
+
   // --- HANDLERS ---
 
   const handleOpenAdd = () => {
+    setStatus(null); // Clear previous alerts
     setIsEditing(false);
     setSelectedProduct(null);
     setImageFile(null);
@@ -74,6 +84,7 @@ function AdminMarketplaceCard() {
   };
 
   const handleOpenEdit = (product: any) => {
+    setStatus(null);
     setIsEditing(true);
     setSelectedProduct(product);
     setImageFile(null);
@@ -101,11 +112,13 @@ function AdminMarketplaceCard() {
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
+
     if (file.size > 2 * 1024 * 1024) {
-      toaster.create({
+      // ✅ Set Alert instead of Toaster
+      setStatus({
+        type: "error",
         title: "File too large",
         description: "Keep it under 2MB",
-        type: "error",
       });
       return;
     }
@@ -124,6 +137,8 @@ function AdminMarketplaceCard() {
   const confirmDelete = async () => {
     if (!productToDelete) return;
     setIsSubmitting(true);
+    setStatus(null); // Clear previous alerts
+
     try {
       const { error } = await supabase
         .from("products")
@@ -131,18 +146,22 @@ function AdminMarketplaceCard() {
         .eq("id", productToDelete.id);
       if (error) throw error;
 
-      toaster.create({
+      // ✅ Success Alert
+      setStatus({
+        type: "success",
         title: "Product Deleted",
         description: `${productToDelete.name} has been removed.`,
-        type: "success",
       });
+
       setIsDeleteOpen(false);
-      window.location.reload();
+
+      // Optional: Delay reload slightly so user sees the alert
+      setTimeout(() => window.location.reload(), 1000);
     } catch (error: any) {
-      toaster.create({
+      setStatus({
+        type: "error",
         title: "Delete Failed",
         description: error.message,
-        type: "error",
       });
     } finally {
       setIsSubmitting(false);
@@ -150,8 +169,9 @@ function AdminMarketplaceCard() {
   };
 
   const handleSubmit = async () => {
+    setStatus(null);
     if (!formData.name || !formData.price) {
-      toaster.create({ title: "Required fields missing", type: "error" });
+      setStatus({ type: "error", title: "Required fields missing" });
       return;
     }
 
@@ -193,16 +213,19 @@ function AdminMarketplaceCard() {
       }
 
       setIsOpen(false);
-      toaster.create({
-        title: isEditing ? "Product Updated" : "Product Added",
+      // ✅ Success Alert
+      setStatus({
         type: "success",
+        title: isEditing ? "Product Updated" : "Product Added",
+        description: "Your changes have been saved successfully.",
       });
-      window.location.reload();
+
+      setTimeout(() => window.location.reload(), 1000);
     } catch (error: any) {
-      toaster.create({
-        title: "Error",
-        description: error.message,
+      setStatus({
         type: "error",
+        title: "Error saving product",
+        description: error.message,
       });
     } finally {
       setIsSubmitting(false);
@@ -218,9 +241,23 @@ function AdminMarketplaceCard() {
 
   return (
     <Box bg="gray.50" minH="100vh" p="8">
-      <Toaster toaster={toaster} />
-
       <Container maxW="6xl">
+        {/* ✅ ALERT COMPONENT (Replaces Toaster) */}
+        {status && (
+          <Alert.Root status={status.type} mb={6} variant="surface">
+            <Alert.Indicator />
+            <Box flex="1">
+              <Alert.Title>{status.title}</Alert.Title>
+              {status.description && (
+                <Alert.Description>{status.description}</Alert.Description>
+              )}
+            </Box>
+            <Button size="xs" variant="ghost" onClick={() => setStatus(null)}>
+              <X size={16} />
+            </Button>
+          </Alert.Root>
+        )}
+
         <Flex justify="space-between" mb="6">
           <Heading size="md">Marketplace Admin</Heading>
           <Button bg="blue.600" color="white" onClick={handleOpenAdd} gap={2}>
