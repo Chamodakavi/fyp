@@ -47,7 +47,8 @@ const pages = [
   { id: 3, name: "News", icon: LuNewspaper, link: "/news" },
   { id: 4, name: "Community", icon: LuMessageCircle, link: "/community" },
   { id: 5, name: "Cart", icon: LuShoppingCart, link: "/cart" },
-  { id: 6, name: "Settings", icon: LuSettings, link: "/settings" },
+  { id: 6, name: "Registration", icon: LuBell, link: "/registration" },
+  { id: 7, name: "Settings", icon: LuSettings, link: "/settings" },
 ];
 
 function SideNav() {
@@ -56,10 +57,21 @@ function SideNav() {
   const supabase = createClient();
   const { user, loading } = useUser();
 
-  const handleLogout = () => {
-    // Optional: Clear any stored user data/tokens here
-    localStorage.removeItem("user");
-    router.replace("/");
+  const handleLogout = async () => {
+    try {
+      const supabase = createClient();
+
+      // Tell Supabase to clear the session cookies
+      await supabase.auth.signOut();
+
+      // DO NOT do localStorage.removeItem("user") here.
+      // Supabase SSR uses cookies.
+
+      // Force a hard refresh and redirect to clear Next.js client cache
+      window.location.href = "/";
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
   };
 
   const SidebarContent = () => (

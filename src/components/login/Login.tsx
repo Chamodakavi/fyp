@@ -58,6 +58,20 @@ function Login() {
   const [errorMsg, setErrorMsg] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
+  const handleGoogleLogin = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        // This tells Google where to send the user after they click their email
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (error) {
+      console.error("Google login error:", error.message);
+    }
+  };
+
   // --- LOGIN LOGIC (UPDATED) ---
   const handleLogin = async () => {
     setLoading(true);
@@ -248,6 +262,7 @@ function Login() {
               </Box>
 
               {/* Google Button (Placeholder action) */}
+              {/* Google Button */}
               <Button
                 size="lg"
                 variant="outline"
@@ -258,6 +273,7 @@ function Login() {
                 borderColor="green.200"
                 color="green.800"
                 _hover={{ bg: "green.100" }}
+                onClick={handleGoogleLogin} // <--- ADD THIS LINE HERE
               >
                 <GoogleIcon /> Sign in with Google
               </Button>
@@ -265,7 +281,7 @@ function Login() {
 
             {/* Footer */}
             <Text alignContent="center" fontSize="sm" color="gray.500" mt={4}>
-              Don't have an account?{" "}
+              {" Don't have an account?"}
               <Link
                 href="/signup"
                 style={{ color: "#276749", fontWeight: "bold" }}

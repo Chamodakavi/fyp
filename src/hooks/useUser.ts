@@ -22,7 +22,7 @@ export function useUser() {
   const [error, setError] = useState<string | null>(null);
 
   // Helper to fetch data
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string, retryCount = 0) => {
     console.log("Fetching profile for:", userId);
     const { data, error } = await supabase
       .from("users")
@@ -31,12 +31,19 @@ export function useUser() {
       .single();
 
     if (error) {
-      console.error("Error fetching user profile:", error);
-      setError(error.message);
+      // If profile isn't found, wait 1 second and try one more time
+      if (retryCount < 1) {
+        console.log("Profile not found yet, retrying in 1s...");
+        setTimeout(() => fetchProfile(userId, retryCount + 1), 1000);
+      } else {
+        console.error("Error fetching user profile:", error);
+        setError(error.message);
+        setLoading(false);
+      }
     } else {
       setUser(data);
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   // 1️⃣ Initial Load
