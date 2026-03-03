@@ -32,6 +32,7 @@ import {
   LucideTwitter,
   LucideInstagram,
 } from "lucide-react";
+import Link from "next/link";
 
 
 // --- Hero Component ---
@@ -96,7 +97,7 @@ const HeroSection = () => {
                 rounded="full"
                 px={8}
               >
-                <NextLink href="/login">Get Started</NextLink>
+                <Link href="/login">Get Started</Link>
               </Button>
             </Flex>
           </Stack>
@@ -352,7 +353,7 @@ const TestimonialsSection = () => {
                   color="gray.600"
                   mb={6}
                 >
-                  "{t.text}"
+                  {t.text}
                 </Text>
                 <Box>
                   <Text fontWeight="bold" color="gray.900">

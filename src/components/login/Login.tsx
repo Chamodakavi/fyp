@@ -265,7 +265,7 @@ function Login() {
 
             {/* Footer */}
             <Text alignContent="center" fontSize="sm" color="gray.500" mt={4}>
-              Don't have an account?{" "}
+              {" Don't have an account?"}
               <Link
                 href="/signup"
                 style={{ color: "#276749", fontWeight: "bold" }}
