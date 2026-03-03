@@ -60,14 +60,15 @@ function SideNav() {
   const handleLogout = async () => {
     try {
       const supabase = createClient();
-      // 1. Tell Supabase to clear the session cookies/tokens
+
+      // Tell Supabase to clear the session cookies
       await supabase.auth.signOut();
 
-      // 2. Clear any local memory your app has
-      localStorage.removeItem("user");
+      // DO NOT do localStorage.removeItem("user") here.
+      // Supabase SSR uses cookies.
 
-      // 3. Send the user back to the login/landing page
-      router.replace("/");
+      // Force a hard refresh and redirect to clear Next.js client cache
+      window.location.href = "/";
     } catch (error) {
       console.error("Error signing out:", error);
     }
