@@ -47,7 +47,8 @@ const pages = [
   { id: 3, name: "News", icon: LuNewspaper, link: "/news" },
   { id: 4, name: "Community", icon: LuMessageCircle, link: "/community" },
   { id: 5, name: "Cart", icon: LuShoppingCart, link: "/cart" },
-  { id: 6, name: "Settings", icon: LuSettings, link: "/settings" },
+  { id: 6, name: "Registration", icon: LuBell, link: "/registration" },
+  { id: 7, name: "Settings", icon: LuSettings, link: "/settings" },
 ];
 
 function SideNav() {
