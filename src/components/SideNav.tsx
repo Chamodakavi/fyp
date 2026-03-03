@@ -57,10 +57,20 @@ function SideNav() {
   const supabase = createClient();
   const { user, loading } = useUser();
 
-  const handleLogout = () => {
-    // Optional: Clear any stored user data/tokens here
-    localStorage.removeItem("user");
-    router.replace("/");
+  const handleLogout = async () => {
+    try {
+      const supabase = createClient();
+      // 1. Tell Supabase to clear the session cookies/tokens
+      await supabase.auth.signOut();
+
+      // 2. Clear any local memory your app has
+      localStorage.removeItem("user");
+
+      // 3. Send the user back to the login/landing page
+      router.replace("/");
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
   };
 
   const SidebarContent = () => (
