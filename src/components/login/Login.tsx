@@ -137,7 +137,7 @@ function Login() {
         display={{ base: "none", md: "flex" }}
       >
         <Image
-          src="https://placehold.co/600x600/e2e8f0/386641?text=Farm+Illustration"
+          src="/images/farmer.png"
           alt="Farmer Illustration"
           objectFit="contain"
           maxH="80vh"

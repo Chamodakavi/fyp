@@ -61,14 +61,10 @@ function SideNav() {
     try {
       const supabase = createClient();
 
-      // Tell Supabase to clear the session cookies
+      // Supabase clear the session cookies
       await supabase.auth.signOut();
 
-      // DO NOT do localStorage.removeItem("user") here.
-      // Supabase SSR uses cookies.
-
-      // Force a hard refresh and redirect to clear Next.js client cache
-      window.location.href = "/";
+      window.location.href = "/login";
     } catch (error) {
       console.error("Error signing out:", error);
     }
