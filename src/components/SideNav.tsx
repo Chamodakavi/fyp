@@ -76,7 +76,10 @@ function SideNav() {
         <Link href={"/home"} style={{ textDecoration: "none" }}>
           <HStack my={5} color={"white"} cursor={"pointer"}>
             <Image w={20} objectFit={"contain"} src={"/images/logo.png"} />
-            <Text fontWeight={"bold"} fontSize={"3xl"}>
+            <Text
+              fontWeight={"bold"}
+              fontSize={{ base: "2xl", md: "xl", lg: "2xl" }}
+            >
               Farmer
             </Text>
           </HStack>
@@ -153,7 +156,10 @@ function SideNav() {
         mt={6}
         gap={3}
       >
-        <Avatar.Root size="md">
+        <Avatar.Root
+          size="md"
+          display={{ base: "none", md: "none", lg: "flex" }}
+        >
           <Avatar.Fallback
             name="Chamodia Hapuarachchi"
             bg="green.700"
@@ -187,18 +193,26 @@ function SideNav() {
                 <Text fontSize="2xs" color="green.800" truncate>
                   {user?.u_email || "No Email"}
                 </Text>
+                <Box
+                  mt={1}
+                  onClick={handleLogout}
+                  cursor="pointer"
+                  _hover={{ color: "red.500" }}
+                >
+                  <LuLogOut size={20} />
+                </Box>
               </>
             )}
           </Box>
 
-          <Box
+          {/* <Box
             mt={1}
             onClick={handleLogout}
             cursor="pointer"
             _hover={{ color: "red.500" }}
           >
             <LuLogOut size={20} />
-          </Box>
+          </Box> */}
         </Box>
       </HStack>
     </Flex>
