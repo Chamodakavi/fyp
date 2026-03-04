@@ -6,7 +6,7 @@ import RegisterForm from "./RegisterForm";
 
 function Register() {
   return (
-    <Box minH="100vh" bg="#D4F2C4" py={8} px={4}>
+    <Box minH="100vh" bg="#D4F2C4" py={8}>
       <Box maxW="1200px" mx="auto">
         <Flex gap={2} direction={{ base: "column", lg: "row" }}>
           <Box flex={{ base: "1", lg: "2.5" }}>
