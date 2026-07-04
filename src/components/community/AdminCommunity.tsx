@@ -15,14 +15,14 @@ import {
   Spinner,
   createToaster,
   Toaster,
-  Dialog, // ✅ Imported Dialog components
+  Dialog, //    Imported Dialog components
   Portal,
 } from "@chakra-ui/react";
 import { Search, Trash2, AlertTriangle } from "lucide-react";
 import { usePosts } from "@/hooks/usePosts";
 import { createClient } from "@/utils/supabase/createClient";
 
-// ✅ Create Toaster Instance
+//    Create Toaster Instance
 const toaster = createToaster({
   placement: "top-end",
   pauseOnPageIdle: true,
@@ -39,7 +39,7 @@ function AdminCommunity() {
   const [postToDelete, setPostToDelete] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false); // Loading state for the API call
 
-  // ✅ 1. Search Logic (Client-Side Filtering)
+  //    1. Search Logic (Client-Side Filtering)
   const filteredPosts = posts.filter((post) => {
     const query = searchQuery.toLowerCase();
     const contentMatch = post.content.toLowerCase().includes(query);
@@ -47,12 +47,12 @@ function AdminCommunity() {
     return contentMatch || userMatch;
   });
 
-  // ✅ 2. Open Delete Confirmation
+  //    2. Open Delete Confirmation
   const promptDelete = (postId: number) => {
     setPostToDelete(postId);
   };
 
-  // ✅ 3. Execute Delete (Called from Dialog)
+  //    3. Execute Delete (Called from Dialog)
   const handleConfirmDelete = async () => {
     if (!postToDelete) return;
 
@@ -247,7 +247,7 @@ function AdminCommunity() {
         )}
       </Container>
 
-      {/* ✅ DELETE CONFIRMATION DIALOG */}
+      {/*    DELETE CONFIRMATION DIALOG */}
       <Dialog.Root
         open={!!postToDelete}
         onOpenChange={(e) => !e.open && setPostToDelete(null)}

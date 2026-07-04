@@ -29,10 +29,11 @@ import {
   LuX,
   LuLogOut,
 } from "react-icons/lu";
+
 import { useUser } from "@/hooks/useUser";
 import { createClient } from "@/utils/supabase/createClient";
 import { Skeleton } from "@chakra-ui/react";
-
+import { usePathname } from "next/navigation";
 // Theme Colors derived from the image
 const THEME = {
   bg: "#0D2818", // Deep Forest Green
@@ -48,7 +49,8 @@ const pages = [
   { id: 4, name: "Community", icon: LuMessageCircle, link: "/community" },
   { id: 5, name: "Cart", icon: LuShoppingCart, link: "/cart" },
   { id: 6, name: "Registration", icon: LuBell, link: "/registration" },
-  { id: 7, name: "Settings", icon: LuSettings, link: "/settings" },
+  { id: 7, name: "Contact", icon: LuSettings, link: "/contact" },
+  { id: 8, name: "Settings", icon: LuSettings, link: "/settings" },
 ];
 
 function SideNav() {
@@ -57,18 +59,17 @@ function SideNav() {
   const supabase = createClient();
   const { user, loading } = useUser();
 
+  const pathname = usePathname();
+  console.log(pathname);
+
   const handleLogout = async () => {
     try {
       const supabase = createClient();
 
-      // Tell Supabase to clear the session cookies
+      // Supabase clear the session cookies
       await supabase.auth.signOut();
 
-      // DO NOT do localStorage.removeItem("user") here.
-      // Supabase SSR uses cookies.
-
-      // Force a hard refresh and redirect to clear Next.js client cache
-      window.location.href = "/";
+      window.location.href = "/login";
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -80,7 +81,10 @@ function SideNav() {
         <Link href={"/home"} style={{ textDecoration: "none" }}>
           <HStack my={5} color={"white"} cursor={"pointer"}>
             <Image w={20} objectFit={"contain"} src={"/images/logo.png"} />
-            <Text fontWeight={"bold"} fontSize={"3xl"}>
+            <Text
+              fontWeight={"bold"}
+              fontSize={{ base: "2xl", md: "xl", lg: "2xl" }}
+            >
               Farmer
             </Text>
           </HStack>
@@ -157,7 +161,10 @@ function SideNav() {
         mt={6}
         gap={3}
       >
-        <Avatar.Root size="md">
+        <Avatar.Root
+          size="md"
+          display={{ base: "none", md: "none", lg: "flex" }}
+        >
           <Avatar.Fallback
             name="Chamodia Hapuarachchi"
             bg="green.700"
@@ -191,18 +198,26 @@ function SideNav() {
                 <Text fontSize="2xs" color="green.800" truncate>
                   {user?.u_email || "No Email"}
                 </Text>
+                <Box
+                  mt={1}
+                  onClick={handleLogout}
+                  cursor="pointer"
+                  _hover={{ color: "red.500" }}
+                >
+                  <LuLogOut size={20} />
+                </Box>
               </>
             )}
           </Box>
 
-          <Box
+          {/* <Box
             mt={1}
             onClick={handleLogout}
             cursor="pointer"
             _hover={{ color: "red.500" }}
           >
             <LuLogOut size={20} />
-          </Box>
+          </Box> */}
         </Box>
       </HStack>
     </Flex>

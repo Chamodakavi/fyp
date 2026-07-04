@@ -53,7 +53,7 @@ function AdminNewsManagement() {
     n_img: "", // Public URL
   });
 
-  // ✅ Image Management State
+  //  Image Management State
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
 
@@ -99,7 +99,7 @@ function AdminNewsManagement() {
     setIsOpen(true);
   };
 
-  // ✅ Image Selection Handler
+  //  Image Selection Handler
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
@@ -149,7 +149,7 @@ function AdminNewsManagement() {
     let finalImageUrl = formData.n_img;
 
     try {
-      // ✅ Handle Storage Upload if a new file is selected
+      //  Handle Storage Upload if a new file is selected
       if (imageFile) {
         const fileExt = imageFile.name.split(".").pop();
         const fileName = `news-${Date.now()}.${fileExt}`;

@@ -1,9 +1,9 @@
-import { createClient } from "@/utils/supabase/createClient"; // ✅ Correct Import
+import { createClient } from "@/utils/supabase/createClient";
 
 export const cropManager = {
   // 1. Check Bucket Status
   async getBucketStatus(cropName: string) {
-    const supabase = createClient(); // ✅ Create client instance here
+    const supabase = createClient();
 
     try {
       // Get Target
@@ -51,7 +51,7 @@ export const cropManager = {
 
   // 2. Register Crop
   async registerCrop(farmerId: string, cropName: string, amountMt: number) {
-    const supabase = createClient(); // ✅ Create client instance here as well
+    const supabase = createClient(); // Create client instance here
 
     const status = await this.getBucketStatus(cropName);
 
