@@ -16,7 +16,6 @@ import {
 import { useRegisteredCrops } from "@/hooks/useRegisteredCrop";
 import { LuSprout, LuHistory } from "react-icons/lu";
 
-// Matching your DashboardCard style
 const DashboardCard = ({ children, bg = "white", ...props }: any) => (
   <Box
     bg={bg}

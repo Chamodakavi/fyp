@@ -35,7 +35,7 @@ function MarketplaceCard({ item }: { item: any }) {
       {/* Image Section */}
       <Box position="relative" h="160px" w="100%">
         <Image
-          src={item.image}
+          src={item.image || null}
           alt={item.name}
           objectFit="cover"
           w="100%"

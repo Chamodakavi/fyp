@@ -75,6 +75,12 @@ const adminPages = [
     icon: LuMessageCircle,
     link: "/admin/community",
   },
+  {
+    id: 7,
+    name: "Complaints",
+    icon: LuMessageCircle,
+    link: "/admin/complaints",
+  },
 ];
 
 function AdminNav() {

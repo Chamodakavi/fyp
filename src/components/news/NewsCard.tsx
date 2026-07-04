@@ -13,7 +13,7 @@ import { Calendar } from "lucide-react";
 const NewsCard = ({ news }: { news: any }) => {
   return (
     <Box
-      bg="#FDF6E3" // Matching beige color
+      bg="#FDF6E3"
       borderRadius="xl"
       overflow="hidden"
       boxShadow="sm"

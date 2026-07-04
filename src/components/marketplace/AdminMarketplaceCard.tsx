@@ -18,7 +18,7 @@ import {
   NativeSelect,
   Spinner,
   Dialog,
-  Alert, // ✅ Added Alert Component
+  Alert, //  Added Alert Component
 } from "@chakra-ui/react";
 import { Plus, Pencil, Trash2, Image as ImageIcon, X } from "lucide-react";
 import { useProducts } from "@/hooks/useProducts";
@@ -37,7 +37,7 @@ function AdminMarketplaceCard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
-  // ✅ New Simple Alert State
+  //   New Simple Alert State
   const [status, setStatus] = useState<{
     type: "success" | "error";
     title: string;
@@ -56,7 +56,7 @@ function AdminMarketplaceCard() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
 
-  // ✅ Auto-hide alert after 5 seconds
+  //   Auto-hide alert after 5 seconds
   useEffect(() => {
     if (status) {
       const timer = setTimeout(() => setStatus(null), 5000);
@@ -114,7 +114,7 @@ function AdminMarketplaceCard() {
     const file = e.target.files[0];
 
     if (file.size > 2 * 1024 * 1024) {
-      // ✅ Set Alert instead of Toaster
+      //   Set Alert instead of Toaster
       setStatus({
         type: "error",
         title: "File too large",
@@ -133,7 +133,7 @@ function AdminMarketplaceCard() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // ✅ CONFIRM DELETE HANDLER
+  //   CONFIRM DELETE HANDLER
   const confirmDelete = async () => {
     if (!productToDelete) return;
     setIsSubmitting(true);
@@ -146,7 +146,7 @@ function AdminMarketplaceCard() {
         .eq("id", productToDelete.id);
       if (error) throw error;
 
-      // ✅ Success Alert
+      //   Success Alert
       setStatus({
         type: "success",
         title: "Product Deleted",
@@ -213,7 +213,7 @@ function AdminMarketplaceCard() {
       }
 
       setIsOpen(false);
-      // ✅ Success Alert
+      //   Success Alert
       setStatus({
         type: "success",
         title: isEditing ? "Product Updated" : "Product Added",
@@ -242,7 +242,7 @@ function AdminMarketplaceCard() {
   return (
     <Box bg="gray.50" minH="100vh" p="8">
       <Container maxW="6xl">
-        {/* ✅ ALERT COMPONENT (Replaces Toaster) */}
+        {/*   ALERT COMPONENT (Replaces Toaster) */}
         {status && (
           <Alert.Root status={status.type} mb={6} variant="surface">
             <Alert.Indicator />

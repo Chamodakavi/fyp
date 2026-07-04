@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/createClient";
-import { useUser } from "./useUser"; // We use your existing hook to get the ID
+import { useUser } from "./useUser";
 
 type RegisteredCrop = {
   id: number;
@@ -17,12 +17,12 @@ export function useRegisteredCrops() {
   const [loadingCrops, setLoadingCrops] = useState(true);
 
   useEffect(() => {
-    // Only fetch if we actually have a user ID
+    // Only fetch actually have a user ID
     if (!user?.id) return;
 
     const fetchCrops = async () => {
       setLoadingCrops(true);
-      
+
       const { data, error } = await supabase
         .from("farmer_registrations")
         .select("*")
@@ -37,7 +37,7 @@ export function useRegisteredCrops() {
     };
 
     fetchCrops();
-  }, [user?.id]); // Re-run if the user changes (like after a Google login)
+  }, [user?.id]);
 
   return { crops, loadingCrops };
 }

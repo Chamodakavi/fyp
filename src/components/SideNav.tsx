@@ -29,10 +29,11 @@ import {
   LuX,
   LuLogOut,
 } from "react-icons/lu";
+
 import { useUser } from "@/hooks/useUser";
 import { createClient } from "@/utils/supabase/createClient";
 import { Skeleton } from "@chakra-ui/react";
-
+import { usePathname } from "next/navigation";
 // Theme Colors derived from the image
 const THEME = {
   bg: "#0D2818", // Deep Forest Green
@@ -48,7 +49,8 @@ const pages = [
   { id: 4, name: "Community", icon: LuMessageCircle, link: "/community" },
   { id: 5, name: "Cart", icon: LuShoppingCart, link: "/cart" },
   { id: 6, name: "Registration", icon: LuBell, link: "/registration" },
-  { id: 7, name: "Settings", icon: LuSettings, link: "/settings" },
+  { id: 7, name: "Contact", icon: LuSettings, link: "/contact" },
+  { id: 8, name: "Settings", icon: LuSettings, link: "/settings" },
 ];
 
 function SideNav() {
@@ -56,6 +58,9 @@ function SideNav() {
   const router = useRouter();
   const supabase = createClient();
   const { user, loading } = useUser();
+
+  const pathname = usePathname();
+  console.log(pathname);
 
   const handleLogout = async () => {
     try {
