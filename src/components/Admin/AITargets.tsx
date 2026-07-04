@@ -18,6 +18,7 @@ import {
   Stack,
 } from "@chakra-ui/react";
 import { Sparkles, Calendar, Wheat, Info } from "lucide-react";
+import { createClient } from "@/utils/supabase/createClient";
 
 // --- CUSTOM COMPONENTS ---
 
@@ -58,6 +59,7 @@ function AITargets() {
   const [year, setYear] = useState(2026);
   const [month, setMonth] = useState(4);
   const [loading, setLoading] = useState(false);
+  const [applying, setApplying] = useState(false);
   const [apiResponse, setApiResponse] = useState<any>(null);
   const [error, setError] = useState("");
 
@@ -96,6 +98,77 @@ function AITargets() {
       setError(err.message || "Failed to connect to AI server.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApplyTarget = async () => {
+    if (!apiResponse) {
+      alert("Please generate an AI target first.");
+      return;
+    }
+
+    setApplying(true);
+    setError("");
+
+    try {
+      const supabase = createClient();
+
+      const targetLimit = Number(apiResponse.Required_Harvest_MT);
+
+      if (!targetLimit || Number.isNaN(targetLimit)) {
+        throw new Error("Invalid AI target value.");
+      }
+
+      const cropName = crop.toUpperCase();
+      const targetYear = Number(year);
+      const targetMonth = Number(month);
+
+      const { data: existingTarget, error: fetchError } = await supabase
+        .from("national_targets")
+        .select("id")
+        .eq("crop_name", cropName)
+        .eq("year", targetYear)
+        .eq("month", targetMonth)
+        .maybeSingle();
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      if (existingTarget) {
+        const { error: updateError } = await supabase
+          .from("national_targets")
+          .update({
+            target_limit_mt: targetLimit,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existingTarget.id);
+
+        if (updateError) {
+          throw updateError;
+        }
+      } else {
+        const { error: insertError } = await supabase
+          .from("national_targets")
+          .insert({
+            crop_name: cropName,
+            target_limit_mt: targetLimit,
+            year: targetYear,
+            month: targetMonth,
+            updated_at: new Date().toISOString(),
+          });
+
+        if (insertError) {
+          throw insertError;
+        }
+      }
+
+      alert(`${crop} target updated successfully!`);
+    } catch (err: any) {
+      console.error("Apply target error:", err);
+      setError(err.message || "Failed to update system target.");
+    } finally {
+      setApplying(false);
     }
   };
 
@@ -311,7 +384,9 @@ function AITargets() {
                 h="55px"
                 gap={3}
                 fontWeight="bold"
-                onClick={() => alert("System targets updated!")}
+                onClick={handleApplyTarget}
+                loading={applying}
+                disabled={applying}
               >
                 Apply System-Wide Target <Calendar size={18} />
               </Button>

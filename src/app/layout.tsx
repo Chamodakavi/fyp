@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import "./globals.css";
 import { Provider } from "@/components/ui/provider";
+import Chatbot from "@/components/ui/Chatbot";
 
 export const metadata: Metadata = {
   title: "FarmFriend",
@@ -19,7 +20,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <Provider>{children}</Provider>
+        <Provider>
+          {children}
+          <Chatbot />
+        </Provider>
       </body>
     </html>
   );
