@@ -26,6 +26,8 @@ import {
   LuLogOut,
   LuShieldCheck,
   LuX,
+  LuClipboardList,
+  LuPackageCheck,
 } from "react-icons/lu";
 import { useUser } from "@/hooks/useUser";
 import { Skeleton } from "@chakra-ui/react";
@@ -59,26 +61,32 @@ const adminPages = [
   },
   {
     id: 4,
+    name: "Orders",
+    icon: LuPackageCheck,
+    link: "/admin/orders",
+  },
+  {
+    id: 5,
     name: "News",
     icon: LuNewspaper,
     link: "/admin/news",
   },
   {
-    id: 5,
+    id: 6,
     name: "Settings",
     icon: LuSettings,
     link: "/admin/settings",
   },
   {
-    id: 6,
+    id: 7,
     name: "Community",
     icon: LuMessageCircle,
     link: "/admin/community",
   },
   {
-    id: 7,
+    id: 8,
     name: "Complaints",
-    icon: LuMessageCircle,
+    icon: LuClipboardList,
     link: "/admin/complaints",
   },
 ];
@@ -97,12 +105,12 @@ function AdminNav() {
   const SidebarContent = () => (
     <Flex direction="column" h="full" w="full" justify="space-between">
       <Box>
-        {/* 1. Logo Area - Adjusted to match SideNav spacing (my={5}) */}
         <Link href="/admin/dashboard" style={{ textDecoration: "none" }}>
           <HStack my={5} cursor="pointer" gap={3}>
             <Box bg="blue.600" p={2} borderRadius="lg">
               <LuShieldCheck size={24} color="white" />
             </Box>
+
             <VStack align="start" gap={0}>
               <Text
                 fontWeight="bold"
@@ -112,6 +120,7 @@ function AdminNav() {
               >
                 Admin Panel
               </Text>
+
               <Text fontSize="xs" color="gray.500" fontWeight="medium">
                 SRI LANKA CROPS
               </Text>
@@ -119,10 +128,10 @@ function AdminNav() {
           </HStack>
         </Link>
 
-        {/* 2. Menu Items - Matches SideNav Typography and Hover behavior */}
         <VStack gap={4} align="start" w="full">
           {adminPages.map((page) => {
             const isActive = pathname === page.link;
+
             return (
               <Link
                 href={page.link}
@@ -138,13 +147,15 @@ function AdminNav() {
                   color={isActive ? THEME.textActive : THEME.text}
                   _hover={{
                     color: "blue.600",
-                    transform: "translateX(5px)", // SideNav style interaction
+                    transform: "translateX(5px)",
                   }}
                 >
                   <page.icon size={22} />
+
                   <Text fontSize="lg" fontWeight={isActive ? "bold" : "medium"}>
                     {page.name}
                   </Text>
+
                   {page.name === "Community" && (
                     <Badge
                       colorPalette="red"
@@ -162,7 +173,6 @@ function AdminNav() {
         </VStack>
       </Box>
 
-      {/* 3. User Profile Card - Refactored to "Pill" style with Avatar size md */}
       <HStack
         bg={THEME.bgActive}
         borderRadius="full"
@@ -187,12 +197,14 @@ function AdminNav() {
                 <Text fontSize="xs" fontWeight="bold" color="gray.800" truncate>
                   {user?.u_name || "Admin User"}
                 </Text>
+
                 <Text fontSize="2xs" color="gray.500" truncate>
                   {user?.u_email || "admin@crops.lk"}
                 </Text>
               </>
             )}
           </Box>
+
           <Box
             mt={1}
             onClick={handleLogout}
@@ -208,7 +220,6 @@ function AdminNav() {
 
   return (
     <nav>
-      {/* --- DESKTOP SIDEBAR (Refactored to sticky/full width) --- */}
       <Box
         display={{ base: "none", lg: "block" }}
         h="100vh"
@@ -221,7 +232,6 @@ function AdminNav() {
         <SidebarContent />
       </Box>
 
-      {/* --- MOBILE DRAWER (Refactored to match SideNav layout) --- */}
       <Drawer.Root
         open={open}
         onOpenChange={(e) => (e.open ? onOpen() : onClose())}
@@ -250,6 +260,7 @@ function AdminNav() {
               <Drawer.Body p={6}>
                 <SidebarContent />
               </Drawer.Body>
+
               <Drawer.CloseTrigger>
                 <LuX />
               </Drawer.CloseTrigger>
