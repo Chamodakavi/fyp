@@ -51,8 +51,7 @@ export const cropManager = {
 
   // 2. Register Crop
   async registerCrop(farmerId: string, cropName: string, amountMt: number) {
-    const supabase = createClient(); // Create client instance here
-
+    const supabase = createClient();
     const status = await this.getBucketStatus(cropName);
 
     if (!status)
@@ -75,7 +74,6 @@ export const cropManager = {
       };
     }
 
-    // Now 'supabase' is defined in this scope, so this works:
     const { error } = await supabase
       .from("farmer_registrations")
       .insert([
