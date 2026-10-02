@@ -9,7 +9,7 @@ load_dotenv()
 load_dotenv(".env.local")
 
 SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL") or os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY") or os.getenv("SUPABASE_ANON_KEY")
+SUPABASE_KEY = os.getenv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY") or os.getenv("SUPABASE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     print("Error: Missing SUPABASE_URL or SUPABASE_ANON_KEY environment variables.", file=sys.stderr)
