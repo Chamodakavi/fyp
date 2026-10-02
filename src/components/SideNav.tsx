@@ -27,6 +27,7 @@ import {
   LuMenu,
   LuShoppingCart,
   LuX,
+  LuCircleHelp,
   LuLogOut,
 } from "react-icons/lu";
 
@@ -49,7 +50,7 @@ const pages = [
   { id: 4, name: "Community", icon: LuMessageCircle, link: "/community" },
   { id: 5, name: "Cart", icon: LuShoppingCart, link: "/cart" },
   { id: 6, name: "Registration", icon: LuBell, link: "/registration" },
-  { id: 7, name: "Contact", icon: LuSettings, link: "/contact" },
+  { id: 7, name: "Contact", icon: LuCircleHelp, link: "/contact" },
   { id: 8, name: "Settings", icon: LuSettings, link: "/settings" },
 ];
 

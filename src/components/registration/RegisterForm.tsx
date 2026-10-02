@@ -165,12 +165,12 @@ const RegisterForm = () => {
 
         <Box>
           <Text fontWeight="bold" mb={2}>
-            Amount to Grow (Hectare)
+            Expected Harvest Amount (MT)
           </Text>
           <Input
             size="lg"
             type="number"
-            placeholder="e.g. 2.5"
+            placeholder="e.g. 100"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             bg="gray.50"
