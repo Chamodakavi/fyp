@@ -16,6 +16,8 @@ import {
   Textarea,
   VStack,
   Flex,
+  Dialog,
+  IconButton,
 } from "@chakra-ui/react";
 import {
   MessageSquare,
@@ -25,6 +27,7 @@ import {
   CheckCircle,
   Eye,
   Reply,
+  X,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/createClient";
 
@@ -42,6 +45,238 @@ type Complaint = {
   read_at?: string | null;
 };
 
+// -----------------------------------------------------------------
+// Chat Modal Component
+// -----------------------------------------------------------------
+function ChatModal({
+  isOpen,
+  onClose,
+  complaint,
+  onUpdateStatus,
+  onSendReply,
+  actionLoadingId,
+  getStatusColor,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  complaint: Complaint | null;
+  onUpdateStatus: (id: number, status: "read" | "resolved") => Promise<void>;
+  onSendReply: (id: number, message: string) => Promise<void>;
+  actionLoadingId: number | null;
+  getStatusColor: (status?: string | null) => string;
+}) {
+  const [replyText, setReplyText] = useState("");
+
+  // Reset reply text when modal opens for a different complaint
+  useEffect(() => {
+    if (isOpen) {
+      setReplyText("");
+    }
+  }, [isOpen, complaint?.id]);
+
+  if (!complaint) return null;
+
+  const handleSend = async () => {
+    if (!replyText.trim()) return;
+    await onSendReply(complaint.id, replyText);
+    setReplyText("");
+  };
+
+  return (
+    <Dialog.Root open={isOpen} onOpenChange={(e) => !e.open && onClose()}>
+      <Dialog.Backdrop bg="blackAlpha.600" backdropFilter="blur(4px)" />
+      <Dialog.Positioner>
+        <Dialog.Content
+          bg="white"
+          borderRadius="xl"
+          shadow="xl"
+          maxW="2xl"
+          w="full"
+          mx="4"
+          p="0"
+          overflow="hidden"
+        >
+          {/* Modal Header */}
+          <Dialog.Header bg="#0F2B1D" color="white" py="4" px="6">
+            <Flex justify="space-between" align="center">
+              <VStack align="start" gap="0">
+                <Dialog.Title fontSize="lg" fontWeight="bold">
+                  {complaint.subject}
+                </Dialog.Title>
+                <HStack fontSize="sm" color="gray.300" gap="4">
+                  <HStack gap="1">
+                    <User size={14} />
+                    <Text>{complaint.user_name || "Unknown User"}</Text>
+                  </HStack>
+                  <HStack gap="1">
+                    <Mail size={14} />
+                    <Text>{complaint.user_email || "No email"}</Text>
+                  </HStack>
+                </HStack>
+              </VStack>
+              <Dialog.CloseTrigger asChild>
+                <IconButton
+                  variant="ghost"
+                  color="white"
+                  _hover={{ bg: "whiteAlpha.200" }}
+                  onClick={onClose}
+                >
+                  <X size={20} />
+                </IconButton>
+              </Dialog.CloseTrigger>
+            </Flex>
+          </Dialog.Header>
+
+          {/* Modal Body - Chat Area */}
+          <Dialog.Body px="6" py="6" bg="#F9FBF8">
+            <VStack align="stretch" gap="6">
+              {/* Status & Actions Banner */}
+              <Flex
+                justify="space-between"
+                align="center"
+                bg="white"
+                p="3"
+                borderRadius="lg"
+                shadow="sm"
+                border="1px solid"
+                borderColor="gray.100"
+              >
+                <HStack>
+                  <Text fontSize="sm" fontWeight="semibold" color="gray.600">
+                    Status:
+                  </Text>
+                  <Badge
+                    colorPalette={getStatusColor(complaint.status)}
+                    variant="solid"
+                    textTransform="capitalize"
+                  >
+                    {complaint.status || "unread"}
+                  </Badge>
+                </HStack>
+
+                <HStack gap="2">
+                  {complaint.status === "unread" && (
+                    <Button
+                      size="sm"
+                      colorPalette="orange"
+                      variant="outline"
+                      onClick={() => onUpdateStatus(complaint.id, "read")}
+                      loading={actionLoadingId === complaint.id}
+                    >
+                      <Eye size={14} />
+                      Mark Read
+                    </Button>
+                  )}
+                  {complaint.status !== "resolved" && (
+                    <Button
+                      size="sm"
+                      colorPalette="green"
+                      variant="solid"
+                      onClick={() => onUpdateStatus(complaint.id, "resolved")}
+                      loading={actionLoadingId === complaint.id}
+                    >
+                      <CheckCircle size={14} />
+                      Resolve
+                    </Button>
+                  )}
+                </HStack>
+              </Flex>
+
+              {/* User Message */}
+              <Box
+                bg="white"
+                p="4"
+                borderRadius="lg"
+                shadow="sm"
+                border="1px solid"
+                borderColor="gray.100"
+              >
+                <HStack justify="space-between" mb="2">
+                  <Text fontWeight="bold" color="#0F2B1D">
+                    User Message
+                  </Text>
+                  <Text fontSize="xs" color="gray.400">
+                    {new Date(complaint.created_at).toLocaleString()}
+                  </Text>
+                </HStack>
+                <Text whiteSpace="pre-wrap" color="gray.700" fontSize="sm">
+                  {complaint.body}
+                </Text>
+              </Box>
+
+              {/* Admin Reply Chat Bubble */}
+              {complaint.admin_reply && (
+                <Box
+                  bg="#F0FDF4"
+                  p="4"
+                  borderRadius="lg"
+                  shadow="sm"
+                  borderLeft="4px solid"
+                  borderColor="green.500"
+                  alignSelf="flex-end"
+                  w="90%"
+                >
+                  <HStack justify="space-between" mb="2">
+                    <Text fontWeight="bold" color="green.800">
+                      Admin Reply
+                    </Text>
+                    {complaint.replied_at && (
+                      <Text fontSize="xs" color="gray.500">
+                        {new Date(complaint.replied_at).toLocaleString()}
+                      </Text>
+                    )}
+                  </HStack>
+                  <Text whiteSpace="pre-wrap" color="green.900" fontSize="sm">
+                    {complaint.admin_reply}
+                  </Text>
+                </Box>
+              )}
+            </VStack>
+          </Dialog.Body>
+
+          {/* Modal Footer - Reply Area */}
+          {complaint.status !== "resolved" && (
+            <Box
+              px="6"
+              py="4"
+              bg="white"
+              borderTop="1px solid"
+              borderColor="gray.100"
+            >
+              <VStack align="stretch" gap="3">
+                <Text fontWeight="semibold" fontSize="sm" color="gray.700">
+                  Write a Reply
+                </Text>
+                <Textarea
+                  placeholder="Type your reply to the user here..."
+                  size="md"
+                  minH="100px"
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                />
+                <Flex justify="flex-end">
+                  <Button
+                    colorPalette="blue"
+                    onClick={handleSend}
+                    loading={actionLoadingId === complaint.id}
+                    disabled={!replyText.trim()}
+                  >
+                    <Reply size={16} />
+                    Send Reply
+                  </Button>
+                </Flex>
+              </VStack>
+            </Box>
+          )}
+        </Dialog.Content>
+      </Dialog.Positioner>
+    </Dialog.Root>
+  );
+}
+
+// -----------------------------------------------------------------
+// Main Table Component
+// -----------------------------------------------------------------
 function AdminComplaintsTable() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +284,10 @@ function AdminComplaintsTable() {
     "all" | "unread" | "read" | "replied" | "resolved"
   >("all");
 
-  const [replyText, setReplyText] = useState<Record<number, string>>({});
+  const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(
+    null,
+  );
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
 
   const supabase = createClient();
@@ -72,6 +310,12 @@ function AdminComplaintsTable() {
       if (error) throw error;
 
       setComplaints(data || []);
+
+      // Update selected complaint in modal if it's currently open
+      if (selectedComplaint) {
+        const updated = (data || []).find((c) => c.id === selectedComplaint.id);
+        if (updated) setSelectedComplaint(updated);
+      }
     } catch (error: any) {
       console.error("Error fetching complaints:", error.message);
     } finally {
@@ -81,6 +325,7 @@ function AdminComplaintsTable() {
 
   useEffect(() => {
     fetchComplaints();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStatus]);
 
   const updateComplaintStatus = async (
@@ -115,14 +360,7 @@ function AdminComplaintsTable() {
     }
   };
 
-  const sendReply = async (complaintId: number) => {
-    const message = replyText[complaintId]?.trim();
-
-    if (!message) {
-      alert("Please enter a reply.");
-      return;
-    }
-
+  const sendReply = async (complaintId: number, message: string) => {
     setActionLoadingId(complaintId);
 
     try {
@@ -137,13 +375,7 @@ function AdminComplaintsTable() {
 
       if (error) throw error;
 
-      setReplyText((prev) => ({
-        ...prev,
-        [complaintId]: "",
-      }));
-
       await fetchComplaints();
-      alert("Reply sent successfully!");
     } catch (error: any) {
       alert("Error: " + error.message);
     } finally {
@@ -158,7 +390,17 @@ function AdminComplaintsTable() {
     return "red";
   };
 
-  if (loading) {
+  const handleRowClick = (complaint: Complaint) => {
+    setSelectedComplaint(complaint);
+    setIsModalOpen(true);
+
+    // Auto-mark as read if clicked while unread
+    if (complaint.status === "unread") {
+      updateComplaintStatus(complaint.id, "read");
+    }
+  };
+
+  if (loading && complaints.length === 0) {
     return (
       <HStack justify="center" pt="40">
         <Spinner color="#0F2B1D" size="xl" />
@@ -210,27 +452,13 @@ function AdminComplaintsTable() {
             border="1px solid"
             borderColor="gray.100"
           >
-            <Table.Root variant="line" size="md">
+            <Table.Root variant="line" size="md" interactive>
               <Table.Header bg="#0F2B1D">
-                <Table.Row>
-                  <Table.ColumnHeader py="4" color="white">
-                    Date & Time
-                  </Table.ColumnHeader>
-                  <Table.ColumnHeader py="4" color="white">
-                    User
-                  </Table.ColumnHeader>
-                  <Table.ColumnHeader py="4" color="white">
-                    Subject
-                  </Table.ColumnHeader>
-                  <Table.ColumnHeader py="4" color="white">
-                    Details / Reply
-                  </Table.ColumnHeader>
-                  <Table.ColumnHeader py="4" color="white">
-                    Status
-                  </Table.ColumnHeader>
-                  <Table.ColumnHeader py="4" color="white">
-                    Actions
-                  </Table.ColumnHeader>
+                <Table.Row color="black">
+                  <Table.ColumnHeader py="4">Date & Time</Table.ColumnHeader>
+                  <Table.ColumnHeader py="4">User</Table.ColumnHeader>
+                  <Table.ColumnHeader py="4">Subject</Table.ColumnHeader>
+                  <Table.ColumnHeader py="4">Status</Table.ColumnHeader>
                 </Table.Row>
               </Table.Header>
 
@@ -238,7 +466,7 @@ function AdminComplaintsTable() {
                 {complaints.length === 0 ? (
                   <Table.Row>
                     <Table.Cell
-                      colSpan={6}
+                      colSpan={4}
                       textAlign="center"
                       py="20"
                       color="gray.400"
@@ -248,8 +476,12 @@ function AdminComplaintsTable() {
                   </Table.Row>
                 ) : (
                   complaints.map((item) => (
-                    <Table.Row key={item.id} _hover={{ bg: "#F9FBF8" }}>
-                      <Table.Cell w="190px" verticalAlign="top">
+                    <Table.Row
+                      key={item.id}
+                      _hover={{ bg: "#F9FBF8", cursor: "pointer" }}
+                      onClick={() => handleRowClick(item)}
+                    >
+                      <Table.Cell w="200px">
                         <HStack gap="2" color="gray.500" fontSize="sm">
                           <Calendar size={14} />
                           <Box>
@@ -263,7 +495,7 @@ function AdminComplaintsTable() {
                         </HStack>
                       </Table.Cell>
 
-                      <Table.Cell w="220px" verticalAlign="top">
+                      <Table.Cell w="250px">
                         <VStack align="start" gap="1">
                           <HStack color="#0F2B1D">
                             <User size={14} />
@@ -271,7 +503,6 @@ function AdminComplaintsTable() {
                               {item.user_name || "Unknown User"}
                             </Text>
                           </HStack>
-
                           <HStack color="gray.500">
                             <Mail size={14} />
                             <Text fontSize="xs">
@@ -282,77 +513,14 @@ function AdminComplaintsTable() {
                       </Table.Cell>
 
                       <Table.Cell
-                        fontWeight="bold"
+                        fontWeight="medium"
                         color="#0F2B1D"
-                        verticalAlign="top"
-                        w="220px"
+                        maxW="300px"
                       >
-                        {item.subject}
+                        <Text truncate>{item.subject}</Text>
                       </Table.Cell>
 
-                      <Table.Cell color="gray.700" fontSize="sm" py="4">
-                        <VStack align="stretch" gap="3">
-                          <Box>
-                            <Text fontWeight="bold" color="#0F2B1D" mb="1">
-                              User Message
-                            </Text>
-                            <Text whiteSpace="pre-wrap">{item.body}</Text>
-                          </Box>
-
-                          {item.admin_reply && (
-                            <Box
-                              bg="#F0FDF4"
-                              p="3"
-                              borderRadius="lg"
-                              borderLeft="4px solid"
-                              borderColor="green.500"
-                            >
-                              <Text fontWeight="bold" color="green.700" mb="1">
-                                Admin Reply
-                              </Text>
-                              <Text whiteSpace="pre-wrap">
-                                {item.admin_reply}
-                              </Text>
-                              {item.replied_at && (
-                                <Text fontSize="xs" color="gray.500" mt="2">
-                                  Replied at:{" "}
-                                  {new Date(item.replied_at).toLocaleString()}
-                                </Text>
-                              )}
-                            </Box>
-                          )}
-
-                          {item.status !== "resolved" && (
-                            <Box>
-                              <Textarea
-                                placeholder="Type admin reply..."
-                                size="sm"
-                                minH="80px"
-                                value={replyText[item.id] || ""}
-                                onChange={(e) =>
-                                  setReplyText((prev) => ({
-                                    ...prev,
-                                    [item.id]: e.target.value,
-                                  }))
-                                }
-                              />
-
-                              <Button
-                                mt="2"
-                                size="sm"
-                                colorPalette="blue"
-                                onClick={() => sendReply(item.id)}
-                                loading={actionLoadingId === item.id}
-                              >
-                                <Reply size={14} />
-                                Send Reply
-                              </Button>
-                            </Box>
-                          )}
-                        </VStack>
-                      </Table.Cell>
-
-                      <Table.Cell verticalAlign="top">
+                      <Table.Cell>
                         <Badge
                           colorPalette={getStatusColor(item.status)}
                           variant="solid"
@@ -360,40 +528,6 @@ function AdminComplaintsTable() {
                         >
                           {item.status || "unread"}
                         </Badge>
-                      </Table.Cell>
-
-                      <Table.Cell verticalAlign="top">
-                        <VStack align="stretch" gap="2">
-                          {item.status === "unread" && (
-                            <Button
-                              size="xs"
-                              colorPalette="orange"
-                              variant="outline"
-                              onClick={() =>
-                                updateComplaintStatus(item.id, "read")
-                              }
-                              loading={actionLoadingId === item.id}
-                            >
-                              <Eye size={13} />
-                              Mark Read
-                            </Button>
-                          )}
-
-                          {item.status !== "resolved" && (
-                            <Button
-                              size="xs"
-                              colorPalette="green"
-                              variant="outline"
-                              onClick={() =>
-                                updateComplaintStatus(item.id, "resolved")
-                              }
-                              loading={actionLoadingId === item.id}
-                            >
-                              <CheckCircle size={13} />
-                              Resolve
-                            </Button>
-                          )}
-                        </VStack>
                       </Table.Cell>
                     </Table.Row>
                   ))
@@ -408,6 +542,17 @@ function AdminComplaintsTable() {
           </Flex>
         </Stack>
       </Container>
+
+      {/* Render the extracted Chat Modal */}
+      <ChatModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        complaint={selectedComplaint}
+        onUpdateStatus={updateComplaintStatus}
+        onSendReply={sendReply}
+        actionLoadingId={actionLoadingId}
+        getStatusColor={getStatusColor}
+      />
     </Box>
   );
 }

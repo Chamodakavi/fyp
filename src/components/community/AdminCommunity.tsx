@@ -17,8 +17,9 @@ import {
   Toaster,
   Dialog, //    Imported Dialog components
   Portal,
+  Heading,
 } from "@chakra-ui/react";
-import { Search, Trash2, AlertTriangle } from "lucide-react";
+import { Search, Trash2, AlertTriangle, Users } from "lucide-react";
 import { usePosts } from "@/hooks/usePosts";
 import { createClient } from "@/utils/supabase/createClient";
 
@@ -105,6 +106,20 @@ function AdminCommunity() {
       </Toaster>
 
       <Container maxW="full">
+        {/* --- APPLIED HEADER TEMPLATE --- */}
+        <Box mb={8}>
+          <HStack color="blue.600" mb="2">
+            <Users size={28} />
+            <Heading size={{ base: "xl", md: "3xl" }}>
+              Community Management
+            </Heading>
+          </HStack>
+          <Text color="gray.600">
+            Monitor community posts, moderate content, and manage user
+            interactions.
+          </Text>
+        </Box>
+
         {/* --- FILTERS SECTION --- */}
         <Flex gap={4} mb={8} wrap="wrap" align="center">
           <NativeSelect.Root width="200px" variant="subtle">

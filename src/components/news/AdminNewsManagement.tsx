@@ -196,14 +196,29 @@ function AdminNewsManagement() {
   return (
     <Box bg="#F8FAFC" minH="100vh" p="8">
       <Container maxW="full">
-        <Flex justify="space-between" align="center" mb={6}>
-          <Heading size="md" color="gray.800">
-            News Management
-          </Heading>
-          <Button bg="blue.600" color="white" onClick={handleOpenAdd} gap={2}>
+        {/* --- APPLIED HEADER TEMPLATE --- */}
+        <Box mb={8} gap={4}>
+          <Box>
+            <HStack color="blue.600" mb="2">
+              <Newspaper size={28} />
+              <Heading size={{ base: "2xl", md: "3xl" }}>
+                News Management
+              </Heading>
+            </HStack>
+            <Text color="gray.600">
+              Publish announcements, market updates, and general news articles.
+            </Text>
+          </Box>
+          <Button
+            bg="blue.600"
+            color="white"
+            onClick={handleOpenAdd}
+            gap={2}
+            mt={{ base: 2, md: 5 }}
+          >
             <Plus size={18} /> Add News
           </Button>
-        </Flex>
+        </Box>
 
         {statusMessage && (
           <Alert.Root

@@ -18,9 +18,16 @@ import {
   NativeSelect,
   Spinner,
   Dialog,
-  Alert, //  Added Alert Component
+  Alert,
 } from "@chakra-ui/react";
-import { Plus, Pencil, Trash2, Image as ImageIcon, X } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Image as ImageIcon,
+  X,
+  Store,
+} from "lucide-react";
 import { useProducts } from "@/hooks/useProducts";
 import { createClient } from "@/utils/supabase/createClient";
 
@@ -258,12 +265,31 @@ function AdminMarketplaceCard() {
           </Alert.Root>
         )}
 
-        <Flex justify="space-between" mb="6">
-          <Heading size="md">Marketplace Admin</Heading>
-          <Button bg="blue.600" color="white" onClick={handleOpenAdd} gap={2}>
+        {/* --- APPLIED HEADER TEMPLATE --- */}
+        <Box mb={8} gap={4}>
+          <Box>
+            <HStack color="blue.600" mb="2">
+              <Store size={28} />
+              <Heading size={{ base: "2xl", md: "3xl" }}>
+                Marketplace Admin
+              </Heading>
+            </HStack>
+            <Text color="gray.600">
+              Manage products, update inventory, and control marketplace
+              listings.
+            </Text>
+          </Box>
+
+          <Button
+            bg="blue.600"
+            color="white"
+            onClick={handleOpenAdd}
+            gap={2}
+            mt={4}
+          >
             <Plus size={16} /> Add Product
           </Button>
-        </Flex>
+        </Box>
 
         <Box
           bg="white"

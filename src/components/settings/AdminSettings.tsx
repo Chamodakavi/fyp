@@ -5,6 +5,7 @@ import {
   Button,
   createListCollection,
   Field,
+  Flex,
   Heading,
   HStack,
   Input,
@@ -12,10 +13,12 @@ import {
   Select,
   Switch,
   Text,
+  Spinner, // ✅ Imported Spinner here
 } from "@chakra-ui/react";
 import React, { useEffect, useState } from "react";
 import { useUser } from "@/hooks/useUser";
 import { createClient } from "@/utils/supabase/createClient";
+import { Settings } from "lucide-react";
 
 const settingItems = [
   { id: 1, name: "Account", value: "account" },
@@ -165,15 +168,25 @@ function AdminSettings() {
     form.reset();
   };
 
-  if (loading) return <Box p={8}>Loading settings...</Box>;
+  // ✅ Replaced the plain text loading screen with a centered Spinner
+  if (loading) {
+    return (
+      <Flex w="100%" minH="100vh" bg="#ffffff" align="center" justify="center">
+        <Spinner size="xl" color="green.600" borderWidth="4px" />
+      </Flex>
+    );
+  }
 
   return (
-    <Box w="100%" minH="100vh" bg="#ffffff" p={8}>
+    <Box w="100%" minH="100vh" bg="#f8f8f8f6" p={8}>
       <Box>
-        <Heading color="#080e0b" mb={2}>
-          Settings
-        </Heading>
-        <Text color="gray.900" mb={8}>
+        <HStack alignItems="center" mb={1}>
+          <Settings size={28} color="#080e0b" />
+          <Heading color="#080e0b" fontSize={{ base: "2xl", md: "3xl" }}>
+            Settings
+          </Heading>
+        </HStack>
+        <Text color="gray.900" mb={5}>
           Manage your account settings and preferences
         </Text>
         <HStack>
