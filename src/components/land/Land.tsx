@@ -1,505 +1,449 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef, type RefObject } from "react";
 import {
   Box,
   Button,
   Container,
   Flex,
   Heading,
-  Text,
   Stack,
-  SimpleGrid,
-  Icon,
-  Image,
-  Badge,
-  Card,
-  Separator,
-  Link as ChakraLink,
+  Text,
 } from "@chakra-ui/react";
-import NextLink from "next/link";
-import {
-  LucideSprout,
-  LucideTrendingUp,
-  LucideShieldAlert,
-  LucideStore,
-  LucideNewspaper,
-  LucideMessageCircle,
-  LucideCheckCircle,
-  LucideArrowRight,
-  LucideLeaf,
-  LucideFacebook,
-  LucideTwitter,
-  LucideInstagram,
-} from "lucide-react";
 import Link from "next/link";
 
+const LEAF_COUNT = 46;
+const PULL_RADIUS = 340;
 
-// --- Hero Component ---
-const HeroSection = () => {
+type Leaf = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  rot: number;
+  vr: number;
+  depth: number;
+  shade: number;
+};
+
+type MouseState = {
+  x: number;
+  y: number;
+  gx: number;
+  gy: number;
+  active: boolean;
+};
+
+const rand = (a: number, b: number): number => a + Math.random() * (b - a);
+
+const makeLeaf = (w: number, h: number): Leaf => {
+  const depth = rand(0.35, 1);
+
+  return {
+    x: rand(0, w),
+    y: rand(0, h),
+    vx: rand(-0.15, 0.15),
+    vy: rand(-0.1, 0.2),
+    size: 10 + depth * 22,
+    rot: rand(0, Math.PI * 2),
+    vr: rand(-0.012, 0.012),
+    depth,
+    shade: rand(0, 1),
+  };
+};
+
+const drawLeaf = (ctx: CanvasRenderingContext2D, leaf: Leaf): void => {
+  const s = leaf.size;
+
+  ctx.save();
+
+  ctx.translate(leaf.x, leaf.y);
+  ctx.rotate(leaf.rot);
+
+  const light = 28 + leaf.shade * 30;
+
+  ctx.fillStyle = `hsla(
+    ${140 + leaf.shade * 18},
+    55%,
+    ${light}%,
+    ${0.25 + leaf.depth * 0.65}
+  )`;
+
+  ctx.beginPath();
+
+  ctx.moveTo(0, -s);
+
+  ctx.bezierCurveTo(s * 0.9, -s * 0.4, s * 0.7, s * 0.6, 0, s);
+
+  ctx.bezierCurveTo(-s * 0.7, s * 0.6, -s * 0.9, -s * 0.4, 0, -s);
+
+  ctx.fill();
+
+  ctx.strokeStyle = `hsla(
+    150,
+    60%,
+    12%,
+    ${0.35 * leaf.depth}
+  )`;
+
+  ctx.lineWidth = 1;
+
+  ctx.beginPath();
+  ctx.moveTo(0, -s * 0.9);
+  ctx.lineTo(0, s * 0.9);
+  ctx.stroke();
+
+  ctx.restore();
+};
+
+type LeafFieldProps = {
+  containerRef: RefObject<HTMLDivElement | null>;
+};
+
+const LeafField = ({ containerRef }: LeafFieldProps): React.ReactElement => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+
+    if (!canvas || !container) {
+      return;
+    }
+
+    const ctx = canvas.getContext("2d");
+
+    if (!ctx) {
+      return;
+    }
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    let w = 0;
+    let h = 0;
+    let raf = 0;
+
+    let leaves: Leaf[] = [];
+
+    const mouse: MouseState = {
+      x: 0,
+      y: 0,
+      gx: 0,
+      gy: 0,
+      active: false,
+    };
+
+    const resize = (): void => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+      w = container.clientWidth;
+      h = container.clientHeight;
+
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      if (!leaves.length) {
+        leaves = Array.from({ length: LEAF_COUNT }, () => makeLeaf(w, h));
+      }
+    };
+
+    const onMove = (event: PointerEvent): void => {
+      const rect = container.getBoundingClientRect();
+
+      mouse.x = event.clientX - rect.left;
+      mouse.y = event.clientY - rect.top;
+
+      if (!mouse.active) {
+        mouse.gx = mouse.x;
+        mouse.gy = mouse.y;
+      }
+
+      mouse.active = true;
+    };
+
+    const onLeave = (): void => {
+      mouse.active = false;
+    };
+
+    const frame = (): void => {
+      ctx.clearRect(0, 0, w, h);
+
+      /*
+       * Soft light following the cursor
+       */
+      if (mouse.active && !reduceMotion) {
+        mouse.gx += (mouse.x - mouse.gx) * 0.12;
+        mouse.gy += (mouse.y - mouse.gy) * 0.12;
+
+        const gradient = ctx.createRadialGradient(
+          mouse.gx,
+          mouse.gy,
+          0,
+          mouse.gx,
+          mouse.gy,
+          260,
+        );
+
+        gradient.addColorStop(0, "rgba(120, 230, 160, 0.22)");
+
+        gradient.addColorStop(1, "rgba(120, 230, 160, 0)");
+
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, w, h);
+      }
+
+      for (const leaf of leaves) {
+        if (!reduceMotion) {
+          /*
+           * Cursor attraction
+           */
+          if (mouse.active) {
+            const dx = mouse.x - leaf.x;
+            const dy = mouse.y - leaf.y;
+
+            const distance = Math.hypot(dx, dy) || 1;
+
+            if (distance < PULL_RADIUS) {
+              const force = (1 - distance / PULL_RADIUS) * 0.09 * leaf.depth;
+
+              /*
+               * Pull toward cursor + sideways force
+               * to create the swirling effect.
+               */
+              leaf.vx +=
+                (dx / distance) * force + (-dy / distance) * force * 1.4;
+
+              leaf.vy +=
+                (dy / distance) * force + (dx / distance) * force * 1.4;
+
+              leaf.vr += (dx / distance) * 0.0006;
+            }
+          }
+
+          /*
+           * Friction
+           */
+          leaf.vx *= 0.97;
+          leaf.vy *= 0.97;
+          leaf.vr *= 0.985;
+
+          /*
+           * Gentle idle movement
+           */
+          leaf.vx += Math.sin(leaf.y * 0.006 + leaf.rot) * 0.004;
+
+          leaf.vy += 0.0015;
+
+          leaf.x += leaf.vx;
+          leaf.y += leaf.vy;
+
+          leaf.rot += leaf.vr + 0.002;
+
+          /*
+           * Wrap leaves around the screen.
+           */
+          const margin = leaf.size * 2;
+
+          if (leaf.x < -margin) {
+            leaf.x = w + margin;
+          }
+
+          if (leaf.x > w + margin) {
+            leaf.x = -margin;
+          }
+
+          if (leaf.y > h + margin) {
+            leaf.y = -margin;
+            leaf.x = rand(0, w);
+          }
+
+          if (leaf.y < -margin) {
+            leaf.y = h + margin;
+          }
+        }
+
+        drawLeaf(ctx, leaf);
+      }
+
+      raf = requestAnimationFrame(frame);
+    };
+
+    resize();
+    frame();
+
+    window.addEventListener("resize", resize);
+
+    container.addEventListener("pointermove", onMove);
+
+    container.addEventListener("pointerleave", onLeave);
+
+    return () => {
+      cancelAnimationFrame(raf);
+
+      window.removeEventListener("resize", resize);
+
+      container.removeEventListener("pointermove", onMove);
+
+      container.removeEventListener("pointerleave", onLeave);
+    };
+  }, [containerRef]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-hidden="true"
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+      }}
+    />
+  );
+};
+
+const HeroSection = (): React.ReactElement => {
+  const sectionRef = useRef<HTMLDivElement | null>(null);
+
   return (
     <Box
+      ref={sectionRef}
       position="relative"
-      pt={{ base: 20, md: 32 }}
-      pb={{ base: 20, md: 32 }}
-      bg="green.50"
       overflow="hidden"
+      minH={{
+        base: "100vh",
+        md: "100vh",
+      }}
+      display="flex"
+      alignItems="center"
+      color="white"
+      bg="#06150d"
+      backgroundImage={
+        "radial-gradient(900px 600px at 15% 20%, #124a2c 0%, transparent 60%), " +
+        "radial-gradient(800px 600px at 90% 90%, #0d3a22 0%, transparent 65%), " +
+        "linear-gradient(160deg, #06150d 0%, #0a2316 55%, #05100a 100%)"
+      }
     >
-      {/* Background Decoration */}
+      <LeafField containerRef={sectionRef} />
+
+      <Container
+        maxW="container.xl"
+        position="relative"
+        zIndex={1}
+        py={{
+          base: 20,
+          md: 32,
+        }}
+      >
+        <Stack gap={8} maxW="3xl" mx="auto" align="center" textAlign="center">
+          {/* Badge */}
+          <Text
+            w="fit-content"
+            px={4}
+            py={1}
+            rounded="full"
+            fontSize="sm"
+            color="green.200"
+            border="1px solid"
+            borderColor="green.700"
+            bg="blackAlpha.400"
+            backdropFilter="blur(6px)"
+          >
+            Built for Sri Lankan farmers
+          </Text>
+
+          {/* Heading */}
+          <Heading
+            as="h1"
+            fontFamily="Georgia, 'Times New Roman', serif"
+            fontWeight="semibold"
+            fontSize={{
+              base: "4xl",
+              md: "6xl",
+              lg: "7xl",
+            }}
+            lineHeight="1.05"
+            letterSpacing="-0.02em"
+            textShadow="0 4px 40px rgba(0,0,0,0.5)"
+          >
+            Know the Market before you harvest.
+          </Heading>
+
+          {/* Description */}
+          <Text
+            fontSize={{
+              base: "lg",
+              md: "xl",
+            }}
+            color="green.100"
+            opacity={0.85}
+            maxW="xl"
+          >
+            Smart Agri forecasts crop prices and warns you about surplus in your
+            area, so you can plant what sells and sell when the price is right.
+          </Text>
+
+          {/* Buttons */}
+          <Flex gap={4} wrap="wrap" justify="center">
+            <Button
+              asChild
+              size="lg"
+              rounded="full"
+              px={8}
+              color="#06150d"
+              bg="green.300"
+              _hover={{
+                bg: "green.200",
+                transform: "translateY(-2px)",
+              }}
+              transition="all 0.2s"
+              boxShadow="0 0 40px rgba(104, 211, 145, 0.35)"
+            >
+              <Link href="/login">Get started</Link>
+            </Button>
+
+            <Button
+              asChild
+              size="lg"
+              rounded="full"
+              px={8}
+              variant="outline"
+              color="green.100"
+              borderColor="green.600"
+              _hover={{
+                bg: "whiteAlpha.100",
+              }}
+            >
+              <Link href="#features">See how it works</Link>
+            </Button>
+          </Flex>
+        </Stack>
+      </Container>
+
+      {/* Bottom fade */}
       <Box
         position="absolute"
-        top="-10%"
-        right="-5%"
-        opacity={0.1}
-        transform="rotate(45deg)"
-        zIndex={0}
-      >
-        <Icon as={LucideLeaf} boxSize="500px" color="green.400" />
-      </Box>
-
-      <Container maxW="container.xl" position="relative" zIndex={1}>
-        <SimpleGrid columns={{ base: 1, md: 2 }} gap={12} alignItems="center">
-          <Stack gap={6}>
-            <Badge
-              colorPalette="green"
-              variant="solid"
-              size="lg"
-              w="fit-content"
-              px={4}
-              py={1}
-              rounded="full"
-            >
-              Revolutionizing Agriculture
-            </Badge>
-            <Heading
-              size="4xl"
-              lineHeight="1.2"
-              color="gray.900"
-              fontWeight="extrabold"
-            >
-              Predict Crop Prices.{" "}
-              <Text as="span" color="green.600">
-                Prevent Surplus.
-              </Text>{" "}
-              Increase Profit.
-            </Heading>
-            <Text fontSize="xl" color="gray.600" maxW="lg">
-              Empowering Sri Lankan farmers to tackle price crashes,
-              overproduction, and post-harvest losses with AI-driven insights.
-            </Text>
-            <Flex gap={4}>
-              <Button
-                asChild
-                size="lg"
-                color="white"
-                bg="green.600"
-                _hover={{ bg: "green.700" }}
-                rounded="full"
-                px={8}
-              >
-                <Link href="/login">Get Started</Link>
-              </Button>
-            </Flex>
-          </Stack>
-        </SimpleGrid>
-      </Container>
+        left={0}
+        right={0}
+        bottom={0}
+        h="120px"
+        pointerEvents="none"
+        bgGradient="to-b"
+        gradientFrom="transparent"
+        gradientTo="#06150d"
+        opacity={0.6}
+      />
     </Box>
   );
 };
 
-// --- Features Component ---
-const FeaturesSection = () => {
-  const features = [
-    {
-      icon: LucideTrendingUp,
-      title: "Crop Price Prediction",
-      desc: "ML-based forecasting to help you decide when to sell for maximum profit.",
-    },
-    {
-      icon: LucideShieldAlert,
-      title: "Surplus Prevention",
-      desc: "Real-time alerts on potential overproduction in your area.",
-    },
-    {
-      icon: LucideSprout,
-      title: "Smart Crop Suggestions",
-      desc: "Get recommendations on what to plant based on market demand.",
-    },
-    {
-      icon: LucideStore,
-      title: "Marketplace Integration",
-      desc: "Connect directly with buyers and eliminate middlemen exploitation.",
-    },
-    {
-      icon: LucideNewspaper,
-      title: "News & Diseases",
-      desc: "Stay updated with agricultural news and disease outbreak alerts.",
-    },
-    {
-      icon: LucideMessageCircle,
-      title: "Chatbot Assistant",
-      desc: "24/7 AI support for all your farming questions and needs.",
-    },
-  ];
-
-  return (
-    <Box py={24} bg="white">
-      <Container maxW="container.xl">
-        <Stack gap={4} alignItems="center" textAlign="center" mb={16}>
-          <Text
-            color="green.600"
-            fontWeight="bold"
-            textTransform="uppercase"
-            letterSpacing="wider"
-          >
-            Capabilities
-          </Text>
-          <Heading size="3xl" color="gray.800">
-            Everything You Need to Succeed
-          </Heading>
-          <Text fontSize="lg" color="gray.500" maxW="2xl">
-            Our platform provides end-to-end solutions for modern agriculture challenges.
-          </Text>
-        </Stack>
-
-        <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap={8}>
-          {features.map((feature, index) => (
-            <Card.Root
-              key={index}
-              variant="elevated"
-              boxShadow="lg"
-              borderTopWidth="4px"
-              borderColor="green.500"
-              _hover={{ transform: "translateY(-5px)", boxShadow: "xl" }}
-              transition="all 0.3s"
-            >
-              <Card.Body p={8}>
-                <Icon
-                  as={feature.icon}
-                  boxSize={10}
-                  color="green.500"
-                  mb={4}
-                  bg="green.50"
-                  p={2}
-                  rounded="lg"
-                />
-                <Card.Title fontSize="xl" mb={2}>
-                  {feature.title}
-                </Card.Title>
-                <Card.Description fontSize="md" color="gray.600">
-                  {feature.desc}
-                </Card.Description>
-              </Card.Body>
-            </Card.Root>
-          ))}
-        </SimpleGrid>
-      </Container>
-    </Box>
-  );
-};
-
-// --- How It Works Component ---
-const HowItWorksSection = () => {
-  const steps = [
-    {
-      id: "01",
-      title: "Register Your Crops",
-      desc: "Input your cultivation details and expected harvest dates.",
-    },
-    {
-      id: "02",
-      title: "Get Insights",
-      desc: "View price forecasts and surplus risk alerts for your crops.",
-    },
-    {
-      id: "03",
-      title: "Sell Smart",
-      desc: "Connect with buyers in the marketplace and maximize revenue.",
-    },
-  ];
-
-  return (
-    <Box py={24} bg="gray.50">
-      <Container maxW="container.xl">
-        <Heading size="3xl" textAlign="center" mb={16} color="gray.800">
-          How Smart Agri Works
-        </Heading>
-        <SimpleGrid columns={{ base: 1, md: 3 }} gap={10}>
-          {steps.map((step) => (
-            <Flex
-              key={step.id}
-              direction="column"
-              align="center"
-              textAlign="center"
-              bg="white"
-              p={8}
-              rounded="2xl"
-              boxShadow="sm"
-            >
-              <Text
-                fontSize="6xl"
-                fontWeight="bold"
-                color="green.100"
-                lineHeight="1"
-                mb={4}
-              >
-                {step.id}
-              </Text>
-              <Heading size="lg" mb={3} color="gray.700">
-                {step.title}
-              </Heading>
-              <Text color="gray.500">{step.desc}</Text>
-            </Flex>
-          ))}
-        </SimpleGrid>
-      </Container>
-    </Box>
-  );
-};
-
-// --- Impact Section ---
-const ImpactSection = () => {
-  const stats = [
-    { value: "40%", label: "Reduction in Post-Harvest Loss" },
-    { value: "2x", label: "Increase in Income Stability" },
-    { value: "24/7", label: "Real-time Market Access" },
-  ];
-
-  return (
-    <Box py={24} bg="green.900" color="white">
-      <Container maxW="container.xl">
-        <SimpleGrid columns={{ base: 1, lg: 2 }} gap={16} alignItems="center">
-          <Stack gap={6}>
-            <Heading size="3xl">Why Sri Lanka Needs This?</Heading>
-            <Text fontSize="xl" color="green.100">
-              Our agriculture sector faces critical challenges: unexpected price
-              crashes, massive post-harvest wastage, and disconnect between
-              farmers and markets.
-            </Text>
-            <Stack gap={3}>
-              {[
-                "Reduce food shortages and unnecessary imports",
-                "Protect farmers from market manipulation",
-                "Ensure fair prices for both farmers and consumers",
-              ].map((item, i) => (
-                <Flex key={i} gap={3} align="center">
-                  <Icon as={LucideCheckCircle} color="green.400" />
-                  <Text>{item}</Text>
-                </Flex>
-              ))}
-            </Stack>
-          </Stack>
-
-          <SimpleGrid columns={{ base: 1, sm: 3 }} gap={6}>
-            {stats.map((stat, i) => (
-              <Box
-                key={i}
-                bg="white/10"
-                backdropFilter="blur(10px)"
-                p={6}
-                rounded="xl"
-                textAlign="center"
-                border="1px solid"
-                borderColor="white/20"
-              >
-                <Text fontSize="4xl" fontWeight="bold" color="green.300">
-                  {stat.value}
-                </Text>
-                <Text fontSize="sm" color="green.100" mt={2}>
-                  {stat.label}
-                </Text>
-              </Box>
-            ))}
-          </SimpleGrid>
-        </SimpleGrid>
-      </Container>
-    </Box>
-  );
-};
-
-// --- Testimonials Component ---
-const TestimonialsSection = () => {
-  const testimonials = [
-    {
-      name: "Saman Perera",
-      role: "Farmer, Polonnaruwa",
-      text: "Smart Agri saved me from a huge loss last season. The price prediction told me to wait two weeks before selling!",
-    },
-    {
-      name: "Nimali Silva",
-      role: "Wholesale Buyer",
-      text: "Finding consistent quality crops was hard. The marketplace makes it easy to connect directly with trustworthy farmers.",
-    },
-    {
-      name: "Mr. Dissanayake",
-      role: "Agriculture Officer",
-      text: "This system is exactly what our country needs to modernize cultivation planning and reduce national waste.",
-    },
-  ];
-
-  return (
-    <Box py={24} bg="white">
-      <Container maxW="container.xl">
-        <Heading size="2xl" textAlign="center" mb={16} color="gray.800">
-          Trusted by the Community
-        </Heading>
-        <SimpleGrid columns={{ base: 1, md: 3 }} gap={8}>
-          {testimonials.map((t, i) => (
-            <Card.Root key={i} variant="outline" bg="gray.50" border="none">
-              <Card.Body p={8}>
-                <Text
-                  fontSize="lg"
-                  fontStyle="italic"
-                  color="gray.600"
-                  mb={6}
-                >
-                  {t.text}
-                </Text>
-                <Box>
-                  <Text fontWeight="bold" color="gray.900">
-                    {t.name}
-                  </Text>
-                  <Text fontSize="sm" color="green.600">
-                    {t.role}
-                  </Text>
-                </Box>
-              </Card.Body>
-            </Card.Root>
-          ))}
-        </SimpleGrid>
-      </Container>
-    </Box>
-  );
-};
-
-// --- CTA Component ---
-const CTASection = () => {
-  return (
-    <Box py={24} textAlign="center">
-      <Container maxW="container.md">
-        <Stack gap={8} align="center">
-          <Heading size="3xl" color="green.800">
-            Ready to Transform Your Harvest?
-          </Heading>
-          <Text fontSize="xl" color="gray.600">
-            Join thousands of Sri Lankan farmers and buyers who are smarter,
-            safer, and more profitable with Smart Agri.
-          </Text>
-          <Button
-            asChild
-            size="lg"
-            color="white"
-            bg="green.600"
-            _hover={{ bg: "green.700", transform: "scale(1.05)" }}
-            rounded="full"
-            px={12}
-            fontSize="xl"
-            boxShadow="lg"
-          >
-            <NextLink href="/login">
-              Get Started Now <LucideArrowRight />
-            </NextLink>
-          </Button>
-        </Stack>
-      </Container>
-    </Box>
-  );
-};
-
-// --- Footer Component ---
-const Footer = () => {
-  return (
-    <Box bg="gray.900" color="gray.400" py={12}>
-      <Container maxW="container.xl">
-        <SimpleGrid columns={{ base: 1, md: 4 }} gap={10}>
-          <Stack gap={4}>
-            <Flex align="center" gap={2}>
-              <Icon as={LucideSprout} boxSize={6} color="green.400" />
-              <Heading size="md" color="white">
-                Smart Agri
-              </Heading>
-            </Flex>
-            <Text fontSize="sm">
-              Innovating agriculture for a sustainable future in Sri Lanka.
-            </Text>
-          </Stack>
-          <Stack gap={2}>
-            <Text color="white" fontWeight="bold">
-              Quick Links
-            </Text>
-            <ChakraLink asChild>
-              <NextLink href="#">About Us</NextLink>
-            </ChakraLink>
-            <ChakraLink asChild>
-              <NextLink href="#">Features</NextLink>
-            </ChakraLink>
-            <ChakraLink asChild>
-              <NextLink href="#">Marketplace</NextLink>
-            </ChakraLink>
-          </Stack>
-          <Stack gap={2}>
-            <Text color="white" fontWeight="bold">
-              Support
-            </Text>
-            <ChakraLink asChild>
-              <NextLink href="#">Help Center</NextLink>
-            </ChakraLink>
-            <ChakraLink asChild>
-              <NextLink href="#">Contact Us</NextLink>
-            </ChakraLink>
-            <ChakraLink asChild>
-              <NextLink href="#">Privacy Policy</NextLink>
-            </ChakraLink>
-          </Stack>
-          <Stack gap={4}>
-            <Text color="white" fontWeight="bold">
-              Connect With Us
-            </Text>
-            <Flex gap={4}>
-              <Icon
-                as={LucideFacebook}
-                boxSize={5}
-                _hover={{ color: "green.400" }}
-                cursor="pointer"
-              />
-              <Icon
-                as={LucideTwitter}
-                boxSize={5}
-                _hover={{ color: "green.400" }}
-                cursor="pointer"
-              />
-              <Icon
-                as={LucideInstagram}
-                boxSize={5}
-                _hover={{ color: "green.400" }}
-                cursor="pointer"
-              />
-            </Flex>
-            <Text fontSize="sm">contact@smartagri.lk</Text>
-          </Stack>
-        </SimpleGrid>
-        <Separator my={8} borderColor="gray.800" />
-        <Text textAlign="center" fontSize="xs">
-          © {new Date().getFullYear()} Smart Agri Sri Lanka. All rights reserved.
-        </Text>
-      </Container>
-    </Box>
-  );
-};
-
-// --- Main Landing Page ---
-const Landing = () => {
-  return (
-    <Box minH="100vh" bg="white">
-      <HeroSection />
-      <FeaturesSection />
-      <HowItWorksSection />
-      <ImpactSection />
-      <TestimonialsSection />
-      <CTASection />
-      <Footer />
-    </Box>
-  );
-};
-
-export default Landing;
+export default HeroSection;
