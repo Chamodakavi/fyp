@@ -1,0 +1,16 @@
+name: Keep Hugging Face Space Alive
+
+on:
+  schedule:
+    # Runs at 00:00 and 12:00 UTC every day
+    - cron: "0 0,12 * * *"
+  workflow_dispatch: # Allows you to run this manually from the Actions tab
+
+jobs:
+  ping-api:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Health Endpoint
+        run: |
+          curl -f -X GET https://chamodakavi-sri-lanka-crop-api.hf.space/health
+          echo "✅ Successfully pinged AI Engine"
