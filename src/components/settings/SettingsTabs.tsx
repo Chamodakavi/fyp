@@ -22,7 +22,6 @@ export function SettingsTabs({ active, onChange }: SettingsTabsProps) {
             <Text
               key={item.value}
               as="button"
-              type="button"
               flexShrink={0}
               cursor="pointer"
               color={selected ? "green.600" : "gray.700"}
