@@ -11,7 +11,6 @@ export function OrderRow({ order, onClick }: OrderRowProps) {
   return (
     <Box
       as="button"
-      type="button"
       w="full"
       textAlign="left"
       bg="#F8FCF4"
