@@ -23,26 +23,43 @@ export interface TrajectoryPoint {
   targetMT: number;
 }
 
+// Map MT to Hectares using your ML Engine's exact baseline yields
+const YIELD_PER_HECTARE: Record<string, number> = {
+  CARROT: 19.0,
+  TOMATOES: 13.1,
+  BEANS: 18.0,
+  CABBAGE: 24.0,
+  BRINJALS: 11.4,
+};
+
+function getYieldForCrop(cropName: string): number {
+  return YIELD_PER_HECTARE[cropName.toUpperCase()] || 15.0; // Fallback
+}
+
 // 1. Fetch Key Performance Indicators
 export async function getDashboardKPIs(): Promise<DashboardKPIs> {
   const supabase = createClient();
 
-  // A. Total registered farmers from 'users' table
+  // A. Total registered farmers (Filtered by u_role = "user")
   const { count: farmerCount } = await supabase
     .from("users")
     .select("id", { count: "exact", head: true })
-    .eq("u_type", "farmer");
+    .eq("u_role", "user"); // <-- Fixed: Now filters by the correct column
 
-  // B. Total registered land extent from 'crop_registrations' (1 Acre = 0.404686 Ha)
-  const { data: landData } = await supabase
-    .from("crop_registrations")
-    .select("land_size_acres");
+  // B. Total registered land extent (Calculated from farmer_registrations MT)
+  const { data: regs } = await supabase
+    .from("farmer_registrations")
+    .select("crop_name, amount_mt");
 
-  const totalAcres = (landData || []).reduce(
-    (sum, item) => sum + (Number(item.land_size_acres) || 0),
-    0,
-  );
-  const totalAllocatedHa = Number((totalAcres * 0.404686).toFixed(1));
+  let totalAllocatedHa = 0;
+  if (regs) {
+    totalAllocatedHa = regs.reduce((sum, r) => {
+      const yieldMt = getYieldForCrop(r.crop_name || "");
+      const ha = (Number(r.amount_mt) || 0) / yieldMt;
+      return sum + ha;
+    }, 0);
+  }
+  const formattedTotalAllocatedHa = Number(totalAllocatedHa.toFixed(1));
 
   // C. Distinct active crops under regulation from 'national_targets'
   const { data: targetCrops } = await supabase
@@ -61,13 +78,13 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
 
   return {
     totalFarmers: farmerCount || 0,
-    totalAllocatedHa,
+    totalAllocatedHa: formattedTotalAllocatedHa,
     activeCropsCount: distinctCrops.size,
     pendingComplaintsCount: pendingComplaints || 0,
   };
 }
 
-// 2. Fetch Active Quota Windows (Comparing national_targets vs crop_registrations)
+// 2. Fetch Active Quota Windows (Comparing national_targets vs farmer_registrations)
 export async function getActiveCropWindows(): Promise<ActiveCropWindow[]> {
   const supabase = createClient();
 
@@ -80,24 +97,28 @@ export async function getActiveCropWindows(): Promise<ActiveCropWindow[]> {
 
   if (targetError || !targets) return [];
 
-  // Fetch actual registrations to aggregate real registered hectares
+  // FIX: Fetch actual registrations from farmer_registrations (not crop_registrations)
   const { data: registrations } = await supabase
-    .from("crop_registrations")
-    .select("crop_name, land_size_acres, harvest_date");
+    .from("farmer_registrations")
+    .select("crop_name, amount_mt");
 
   return targets.slice(0, 5).map((target) => {
     const targetCropUpper = target.crop_name.toUpperCase();
 
-    // Sum matching farmer registrations for this crop (acres converted to ha)
+    // Sum matching farmer registrations for this crop
     const matchingRegistrations = (registrations || []).filter(
       (reg) => reg.crop_name?.toUpperCase() === targetCropUpper,
     );
 
-    const registeredAcres = matchingRegistrations.reduce(
-      (sum, r) => sum + (Number(r.land_size_acres) || 0),
+    // Sum Metric Tons
+    const registeredMT = matchingRegistrations.reduce(
+      (sum, r) => sum + (Number(r.amount_mt) || 0),
       0,
     );
-    const registeredHa = Number((registeredAcres * 0.404686).toFixed(1));
+
+    // FIX: Convert Metric Tons back to Hectares using specific crop yield
+    const yieldMt = getYieldForCrop(targetCropUpper);
+    const registeredHa = Number((registeredMT / yieldMt).toFixed(1));
     const allowedHa = Number(target.allowed_extent_ha) || 1;
 
     const percentage = Math.min(
@@ -122,7 +143,7 @@ export async function getActiveCropWindows(): Promise<ActiveCropWindow[]> {
         target.target_harvest_date ||
         `${target.year}-${String(target.month).padStart(2, "0")}`,
       registeredHa,
-      allowedHa,
+      allowedHa: Number(allowedHa.toFixed(1)),
       status,
       statusColor,
       percentage,
@@ -183,6 +204,14 @@ export async function getSupplyTrajectory(): Promise<TrajectoryPoint[]> {
 
     if (trajectoryMap.has(key)) {
       trajectoryMap.get(key)!.registeredMT += Number(r.amount_mt) || 0;
+    } else {
+      // FIX: If a farmer registers for a month without an AI target, still show the supply on the chart
+      const label = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+      trajectoryMap.set(key, {
+        month: label,
+        targetMT: 0,
+        registeredMT: Number(r.amount_mt) || 0,
+      });
     }
   });
 

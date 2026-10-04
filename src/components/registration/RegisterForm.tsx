@@ -17,22 +17,6 @@ import { CheckCircle, XCircle } from "lucide-react";
 import { cropManager } from "@/utils/cropManager/cropManager";
 import { createClient } from "@/utils/supabase/createClient";
 
-// Array of all available crops
-const CROP_LIST = [
-  "ASH PLANTAINS",
-  "BEETROOT",
-  "BITTER GOURD",
-  "BRINJALS",
-  "CABBAGE",
-  "CAPSICUM",
-  "CARROT",
-  "CUCUMBER",
-  "LEEKS",
-  "LUFFA",
-  "RADDISH",
-  "TOMATOES",
-];
-
 const DashboardCard = ({ children, bg = "orange.100", ...props }: any) => (
   <Box bg={bg} borderRadius="2xl" p={6} boxShadow="sm" {...props}>
     {children}
@@ -41,39 +25,57 @@ const DashboardCard = ({ children, bg = "orange.100", ...props }: any) => (
 
 const RegisterForm = () => {
   const [amount, setAmount] = useState("");
-  // Initialize with the first crop in the list
-  const [selectedCrop, setSelectedCrop] = useState(CROP_LIST[0]);
+  const [selectedCrop, setSelectedCrop] = useState("");
+  const [availableCrops, setAvailableCrops] = useState<string[]>([]);
+  const [loadingCrops, setLoadingCrops] = useState(true);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error" | null;
     message: string;
   }>({ type: null, message: "" });
 
-  // 🔐 1. STATE FOR THE LOGGED-IN FARMER
   const [farmerId, setFarmerId] = useState<string | null>(null);
 
-  // 🔐 2. FETCH THE REAL USER ON LOAD
   useEffect(() => {
-    const getUser = async () => {
+    const initializeForm = async () => {
       const supabase = createClient();
+
+      // 1. Fetch User
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (user) {
         setFarmerId(user.id);
-        console.log("Logged in as Farmer:", user.id);
       } else {
         setFeedback({ type: "error", message: "Please Log In to Register." });
       }
+
+      // 2. Fetch Active Crops from national_targets
+      const { data: targets, error } = await supabase
+        .from("national_targets")
+        .select("crop_name");
+
+      if (!error && targets) {
+        // Extract unique crop names and sort them alphabetically
+        const uniqueCrops = Array.from(
+          new Set(targets.map((t) => t.crop_name.toUpperCase())),
+        ).sort();
+
+        setAvailableCrops(uniqueCrops);
+        if (uniqueCrops.length > 0) {
+          setSelectedCrop(uniqueCrops[0]);
+        }
+      }
+      setLoadingCrops(false);
     };
-    getUser();
+
+    initializeForm();
   }, []);
 
   const handleRegister = async () => {
     setFeedback({ type: null, message: "" });
 
-    // 🔐 3. CHECK IF LOGGED IN
     if (!farmerId) {
       setFeedback({
         type: "error",
@@ -82,15 +84,19 @@ const RegisterForm = () => {
       return;
     }
 
-    if (!amount) {
+    if (!amount || Number(amount) <= 0) {
       setFeedback({ type: "error", message: "Please enter a valid amount." });
+      return;
+    }
+
+    if (!selectedCrop) {
+      setFeedback({ type: "error", message: "Please select a crop." });
       return;
     }
 
     setLoading(true);
 
     try {
-      // 🚜 4. SEND REAL FARMER ID TO SUPABASE
       const result = await cropManager.registerCrop(
         farmerId,
         selectedCrop,
@@ -126,7 +132,6 @@ const RegisterForm = () => {
         <Heading size="lg" fontWeight="bold" color="green.700">
           🚜 Register Harvest Quota
         </Heading>
-        {/* Show User Status Badge */}
         <Badge colorPalette={farmerId ? "green" : "red"} variant="solid">
           {farmerId ? "🟢 Farmer Authenticated" : "🔴 Guest (Read Only)"}
         </Badge>
@@ -147,20 +152,40 @@ const RegisterForm = () => {
           <Text fontWeight="bold" mb={2}>
             Select Crop
           </Text>
-          <NativeSelect.Root size="lg" variant="subtle">
-            <NativeSelect.Field
-              value={selectedCrop}
-              onChange={(e) => setSelectedCrop(e.currentTarget.value)}
+          {loadingCrops ? (
+            <Flex
+              align="center"
+              gap={3}
+              p={2}
               bg="gray.50"
+              borderRadius="md"
+              h="45px"
             >
-              {CROP_LIST.map((crop) => (
-                <option key={crop} value={crop}>
-                  {crop}
-                </option>
-              ))}
-            </NativeSelect.Field>
-            <NativeSelect.Indicator />
-          </NativeSelect.Root>
+              <Spinner size="sm" color="green.500" />
+              <Text fontSize="sm" color="gray.500">
+                Loading active targets...
+              </Text>
+            </Flex>
+          ) : availableCrops.length === 0 ? (
+            <Text color="red.500" fontSize="sm">
+              No active crop targets available at the moment.
+            </Text>
+          ) : (
+            <NativeSelect.Root size="lg" variant="subtle">
+              <NativeSelect.Field
+                value={selectedCrop}
+                onChange={(e) => setSelectedCrop(e.currentTarget.value)}
+                bg="gray.50"
+              >
+                {availableCrops.map((crop) => (
+                  <option key={crop} value={crop}>
+                    {crop}
+                  </option>
+                ))}
+              </NativeSelect.Field>
+              <NativeSelect.Indicator />
+            </NativeSelect.Root>
+          )}
         </Box>
 
         <Box>
@@ -181,7 +206,7 @@ const RegisterForm = () => {
           size="lg"
           colorPalette="green"
           onClick={handleRegister}
-          disabled={loading || !farmerId} // Disable if not logged in
+          disabled={loading || !farmerId || availableCrops.length === 0}
           w="full"
           mt={2}
         >

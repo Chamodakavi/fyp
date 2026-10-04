@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
+
 import {
   Box,
   Flex,
@@ -14,7 +15,9 @@ import {
   Button,
   Spinner,
 } from "@chakra-ui/react";
+
 import { useRouter } from "next/navigation";
+
 import {
   CloudSun,
   ShoppingBasket,
@@ -28,6 +31,7 @@ import {
 import { useProducts } from "@/hooks/useProducts";
 import { useNews } from "@/hooks/useNews";
 import { useRegisteredCrops } from "@/hooks/useRegisteredCrop";
+import { createClient } from "@/utils/supabase/createClient";
 
 const THEME = {
   pageBg: "#d5efb0",
@@ -39,6 +43,19 @@ const THEME = {
   lightOrange: "#FFF4DF",
   textDark: "#1F2933",
   textMuted: "#667085",
+};
+
+type WeatherData = {
+  district: string;
+  isFallback: boolean;
+
+  current: {
+    temperature_2m: number | null;
+    relative_humidity_2m: number | null;
+    precipitation: number | null;
+    weather_code: number | null;
+    wind_speed_10m: number | null;
+  };
 };
 
 const DashboardCard = ({ children, bg = "white", ...props }: any) => (
@@ -71,6 +88,7 @@ const SectionTitle = ({
       <Heading size="md" color={THEME.textDark}>
         {title}
       </Heading>
+
       {subtitle && (
         <Text fontSize="sm" color={THEME.textMuted} mt={1}>
           {subtitle}
@@ -87,6 +105,7 @@ const SectionTitle = ({
         onClick={onAction}
       >
         {actionText}
+
         <ArrowRight size={16} />
       </Button>
     )}
@@ -139,6 +158,7 @@ const QuickActionCard = ({
       <Text fontWeight="bold" color={THEME.textDark}>
         {title}
       </Text>
+
       <Text fontSize="sm" color={THEME.textMuted}>
         {subtitle}
       </Text>
@@ -149,30 +169,142 @@ const QuickActionCard = ({
 function Dashboard() {
   const router = useRouter();
 
+  const supabase = createClient();
+
   const { products, loading: productsLoading } = useProducts();
+
   const { news, loading: newsLoading } = useNews();
+
   const { crops, loadingCrops } = useRegisteredCrops();
 
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+
+  const [weatherLoading, setWeatherLoading] = useState(true);
+
+  /*
+   * Load weather based on the logged-in user's district.
+   *
+   * If u_district is:
+   *
+   *   Colombo
+   *   COLOMBO
+   *   colombo
+   *   " Colombo "
+   *
+   * the API normalizes it and finds Colombo.
+   *
+   * If u_district is missing or unknown,
+   * the API automatically falls back to Colombo.
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadWeather = async () => {
+      try {
+        setWeatherLoading(true);
+
+        /*
+         * Get the current authenticated user.
+         */
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError) {
+          throw userError;
+        }
+
+        let district: string | null = null;
+
+        /*
+         * Get u_district from users table.
+         */
+        if (user) {
+          const { data, error } = await supabase
+            .from("users")
+            .select("u_district")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          if (error) {
+            throw error;
+          }
+
+          district = data?.u_district ?? null;
+        }
+
+        /*
+         * If district is null/empty, don't send it.
+         * The API will use Colombo.
+         */
+        const url = district?.trim()
+          ? `/api/weather?district=${encodeURIComponent(district)}`
+          : "/api/weather";
+
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch weather");
+        }
+
+        const data: WeatherData = await response.json();
+
+        if (!cancelled) {
+          setWeather(data);
+        }
+      } catch (error) {
+        console.error("Failed to load weather:", error);
+
+        if (!cancelled) {
+          setWeather(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setWeatherLoading(false);
+        }
+      }
+    };
+
+    loadWeather();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const latestProducts = products.slice(0, 4);
+
   const latestNews = news.slice(0, 3);
+
   const latestCrops = crops.slice(0, 3);
 
-  const totalRegisteredAmount = crops.reduce((total: number, crop: any) => {
-    return total + Number(crop.amount_mt || 0);
-  }, 0);
+  const totalRegisteredAmount = crops.reduce(
+    (total: number, crop: any) => total + Number(crop.amount_mt || 0),
+    0,
+  );
+
+  const temperature = weather?.current?.temperature_2m;
 
   return (
     <Box bg={THEME.pageBg} minH="100vh" p={{ base: 4, md: 8 }}>
       <VStack align="stretch" gap={6}>
-        {/* Top Welcome Section */}
+        {/* Welcome Section */}
+
         <Flex
           bg={THEME.darkGreen}
           color="white"
           borderRadius="3xl"
           p={{ base: 6, md: 8 }}
           justify="space-between"
-          align={{ base: "start", md: "center" }}
-          direction={{ base: "column", md: "row" }}
+          align={{
+            base: "start",
+            md: "center",
+          }}
+          direction={{
+            base: "column",
+            md: "row",
+          }}
           gap={6}
           boxShadow="0 18px 35px rgba(13, 40, 24, 0.25)"
         >
@@ -188,7 +320,13 @@ function Dashboard() {
               Smart Farming Dashboard
             </Badge>
 
-            <Heading size={{ base: "xl", md: "2xl" }} lineHeight="1.1">
+            <Heading
+              size={{
+                base: "xl",
+                md: "2xl",
+              }}
+              lineHeight="1.1"
+            >
               Welcome back to FarmFriend
             </Heading>
 
@@ -204,7 +342,9 @@ function Dashboard() {
               color={THEME.darkGreen}
               borderRadius="full"
               fontWeight="bold"
-              _hover={{ bg: "#F3C66D" }}
+              _hover={{
+                bg: "#F3C66D",
+              }}
               onClick={() => router.push("/registration")}
             >
               Register Crop
@@ -215,7 +355,9 @@ function Dashboard() {
               color="white"
               borderColor="whiteAlpha.600"
               borderRadius="full"
-              _hover={{ bg: "whiteAlpha.200" }}
+              _hover={{
+                bg: "whiteAlpha.200",
+              }}
               onClick={() => router.push("/marketplace")}
             >
               Marketplace
@@ -224,20 +366,41 @@ function Dashboard() {
         </Flex>
 
         {/* Summary Cards */}
-        <SimpleGrid columns={{ base: 1, md: 2, xl: 4 }} gap={5}>
+
+        <SimpleGrid
+          columns={{
+            base: 1,
+            md: 2,
+            xl: 4,
+          }}
+          gap={5}
+        >
+          {/* WEATHER */}
+
           <DashboardCard bg={THEME.lightOrange}>
             <HStack justify="space-between" align="start">
               <Box>
                 <Text color={THEME.textMuted} fontSize="sm" fontWeight="medium">
                   Weather
                 </Text>
+
                 <Heading size="xl" color={THEME.textDark} mt={2}>
-                  29°C
+                  {weatherLoading ? (
+                    <Spinner size="sm" />
+                  ) : temperature != null ? (
+                    `${Math.round(temperature)}°C`
+                  ) : (
+                    "--°C"
+                  )}
                 </Heading>
+
                 <Text fontSize="sm" color={THEME.textMuted} mt={1}>
-                  Good day for field work
+                  {weather?.district
+                    ? `Weather in ${weather.district}`
+                    : "Weather unavailable"}
                 </Text>
               </Box>
+
               <Flex
                 bg="white"
                 w="48px"
@@ -252,19 +415,24 @@ function Dashboard() {
             </HStack>
           </DashboardCard>
 
+          {/* CROPS */}
+
           <DashboardCard bg={THEME.paleGreen}>
             <HStack justify="space-between" align="start">
               <Box>
                 <Text color={THEME.textMuted} fontSize="sm" fontWeight="medium">
                   My Registered Crops
                 </Text>
+
                 <Heading size="xl" color={THEME.textDark} mt={2}>
                   {loadingCrops ? <Spinner size="sm" /> : crops.length}
                 </Heading>
+
                 <Text fontSize="sm" color={THEME.textMuted} mt={1}>
                   Total: {totalRegisteredAmount} MT
                 </Text>
               </Box>
+
               <Flex
                 bg="white"
                 w="48px"
@@ -279,19 +447,24 @@ function Dashboard() {
             </HStack>
           </DashboardCard>
 
+          {/* PRODUCTS */}
+
           <DashboardCard bg="white">
             <HStack justify="space-between" align="start">
               <Box>
                 <Text color={THEME.textMuted} fontSize="sm" fontWeight="medium">
                   Marketplace Items
                 </Text>
+
                 <Heading size="xl" color={THEME.textDark} mt={2}>
                   {productsLoading ? <Spinner size="sm" /> : products.length}
                 </Heading>
+
                 <Text fontSize="sm" color={THEME.textMuted} mt={1}>
                   Products available now
                 </Text>
               </Box>
+
               <Flex
                 bg={THEME.softGreen}
                 w="48px"
@@ -306,19 +479,24 @@ function Dashboard() {
             </HStack>
           </DashboardCard>
 
+          {/* NEWS */}
+
           <DashboardCard bg="white">
             <HStack justify="space-between" align="start">
               <Box>
                 <Text color={THEME.textMuted} fontSize="sm" fontWeight="medium">
                   Farming News
                 </Text>
+
                 <Heading size="xl" color={THEME.textDark} mt={2}>
                   {newsLoading ? <Spinner size="sm" /> : news.length}
                 </Heading>
+
                 <Text fontSize="sm" color={THEME.textMuted} mt={1}>
                   Latest updates and alerts
                 </Text>
               </Box>
+
               <Flex
                 bg={THEME.softGreen}
                 w="48px"
@@ -335,20 +513,39 @@ function Dashboard() {
         </SimpleGrid>
 
         {/* Main Content */}
-        <SimpleGrid columns={{ base: 1, xl: 3 }} gap={6}>
+
+        <SimpleGrid
+          columns={{
+            base: 1,
+            xl: 3,
+          }}
+          gap={6}
+        >
           {/* Left Column */}
+
           <VStack
             align="stretch"
             gap={6}
-            gridColumn={{ base: "auto", xl: "span 2" }}
+            gridColumn={{
+              base: "auto",
+              xl: "span 2",
+            }}
           >
+            {/* Quick Actions */}
+
             <DashboardCard bg="white">
               <SectionTitle
                 title="Quick Actions"
                 subtitle="Common tasks for farmers"
               />
 
-              <SimpleGrid columns={{ base: 1, md: 3 }} gap={4}>
+              <SimpleGrid
+                columns={{
+                  base: 1,
+                  md: 3,
+                }}
+                gap={4}
+              >
                 <QuickActionCard
                   title="Register Harvest"
                   subtitle="Add expected crop amount"
@@ -377,6 +574,8 @@ function Dashboard() {
               </SimpleGrid>
             </DashboardCard>
 
+            {/* Products */}
+
             <DashboardCard bg="white">
               <SectionTitle
                 title="Latest Marketplace Products"
@@ -392,7 +591,13 @@ function Dashboard() {
               ) : latestProducts.length === 0 ? (
                 <Text color={THEME.textMuted}>No products available yet.</Text>
               ) : (
-                <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
+                <SimpleGrid
+                  columns={{
+                    base: 1,
+                    md: 2,
+                  }}
+                  gap={4}
+                >
                   {latestProducts.map((product: any) => (
                     <Flex
                       key={product.id}
@@ -402,7 +607,9 @@ function Dashboard() {
                       align="center"
                       gap={4}
                       cursor="pointer"
-                      _hover={{ bg: "#E7F3D8" }}
+                      _hover={{
+                        bg: "#E7F3D8",
+                      }}
                       onClick={() => router.push(`/marketplace/${product.id}`)}
                     >
                       <Image
@@ -427,6 +634,7 @@ function Dashboard() {
                           <Badge colorPalette="green" variant="subtle">
                             {product.category || "Product"}
                           </Badge>
+
                           <Badge
                             colorPalette={
                               Number(product.stock || 0) > 0 ? "green" : "red"
@@ -445,7 +653,10 @@ function Dashboard() {
           </VStack>
 
           {/* Right Column */}
+
           <VStack align="stretch" gap={6}>
+            {/* Crop Registrations */}
+
             <DashboardCard bg="white">
               <SectionTitle
                 title="My Crop Registrations"
@@ -463,6 +674,7 @@ function Dashboard() {
                   <Text color={THEME.textDark} fontWeight="medium">
                     No crop registrations yet.
                   </Text>
+
                   <Text fontSize="sm" color={THEME.textMuted} mt={1}>
                     Register your expected harvest to check quota availability.
                   </Text>
@@ -482,6 +694,7 @@ function Dashboard() {
                         <Text fontWeight="bold" color={THEME.textDark}>
                           {crop.crop_name}
                         </Text>
+
                         <Text fontSize="sm" color={THEME.textMuted}>
                           {crop.amount_mt} MT registered
                         </Text>
@@ -495,6 +708,8 @@ function Dashboard() {
                 </VStack>
               )}
             </DashboardCard>
+
+            {/* News */}
 
             <DashboardCard bg="white">
               <SectionTitle
@@ -519,7 +734,9 @@ function Dashboard() {
                       borderRadius="xl"
                       p={4}
                       cursor="pointer"
-                      _hover={{ bg: "#E7F3D8" }}
+                      _hover={{
+                        bg: "#E7F3D8",
+                      }}
                       onClick={() => router.push("/news")}
                     >
                       <Badge colorPalette="orange" variant="subtle" mb={2}>
