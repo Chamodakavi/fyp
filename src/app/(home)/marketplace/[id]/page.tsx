@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Flex,
@@ -13,8 +13,9 @@ import {
   SimpleGrid,
   Icon,
 } from "@chakra-ui/react";
-// 👇 IMPORT TOASTER FROM YOUR SNIPPET
+
 import { toaster } from "@/components/ui/toaster";
+
 import {
   Minus,
   Plus,
@@ -22,12 +23,13 @@ import {
   ArrowLeft,
   Heart,
   Share2,
+  Check,
 } from "lucide-react";
+
 import { useParams, useRouter } from "next/navigation";
 import { useProducts } from "@/hooks/useProducts";
 import { useUser } from "@/hooks/useUser";
 import { createClient } from "@/utils/supabase/createClient";
-import { Check } from "lucide-react";
 
 function DetailedCardPage() {
   const router = useRouter();
@@ -37,83 +39,124 @@ function DetailedCardPage() {
   const { user } = useUser();
   const { products } = useProducts();
 
-  const item = products.find((i) => i.id.toString() === params.id);
+  // Safely get the ID from Next.js params
+  const productId = Array.isArray(params.id) ? params.id[0] : params.id;
+
+  const item = products.find((product) => product.id.toString() === productId);
 
   const [quantity, setQuantity] = useState(1);
-  const [selectedImage, setSelectedImage] = useState(item?.image);
   const [isAdding, setIsAdding] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
   useEffect(() => {
-    if (item) setSelectedImage(item.image);
+    setQuantity(1);
   }, [item]);
 
-  if (!item) return <Box p={10}>Loading or Item not found...</Box>;
+  if (!item) {
+    return <Box p={10}>Loading or Item not found...</Box>;
+  }
 
-  const handleIncrement = () => setQuantity((p) => p + 1);
-  const handleDecrement = () => setQuantity((p) => (p > 1 ? p - 1 : 1));
+  const handleIncrement = () => {
+    // Don't allow quantity above stock
+    if (quantity < item.stock) {
+      setQuantity((prev) => prev + 1);
+    }
+  };
+
+  const handleDecrement = () => {
+    setQuantity((prev) => (prev > 1 ? prev - 1 : 1));
+  };
 
   const handleAddToCart = async () => {
     if (!user) {
-      toaster.create({ title: "Please login first", type: "warning" });
+      toaster.create({
+        title: "Please login first",
+        type: "warning",
+      });
+
       router.push("/");
+      return;
+    }
+
+    if (item.stock <= 0) {
+      toaster.create({
+        title: "Out of stock",
+        type: "warning",
+      });
+
       return;
     }
 
     setIsAdding(true);
 
     try {
-      // 1. Check if item exists
+      // Check whether this product is already in the cart
       const { data: existingItem, error: fetchError } = await supabase
         .from("cart")
         .select("id, qty")
         .eq("user_id", user.id)
         .eq("product_id", item.id)
-        .single();
+        .maybeSingle();
 
-      if (fetchError && fetchError.code !== "PGRST116") {
+      if (fetchError) {
         throw fetchError;
       }
 
-      let error;
-
       if (existingItem) {
-        // 2. Update Quantity
-        const result = await supabase
+        // Update existing quantity
+        const newQuantity = Number(existingItem.qty) + quantity;
+
+        if (newQuantity > item.stock) {
+          toaster.create({
+            title: "Not enough stock",
+            description: `Only ${item.stock} items are available.`,
+            type: "warning",
+          });
+
+          return;
+        }
+
+        const { error } = await supabase
           .from("cart")
-          .update({ quantity: existingItem.qty + quantity })
+          .update({
+            qty: newQuantity,
+          })
           .eq("id", existingItem.id);
-        error = result.error;
+
+        if (error) {
+          throw error;
+        }
       } else {
-        // 3. Insert New Row
-        const result = await supabase.from("cart").insert({
+        // Add new cart item
+        const { error } = await supabase.from("cart").insert({
           user_id: user.id,
           product_id: item.id,
           qty: quantity,
         });
-        error = result.error;
+
+        if (error) {
+          throw error;
+        }
       }
 
-      // 🛑 CRITICAL CHECK: If DB says no, throw error immediately
-      if (error) throw error;
-
-      // 4. Success Toast
       toaster.create({
         title: "Added to Cart!",
+        description: `${item.name} has been added to your cart.`,
         type: "success",
         duration: 2000,
       });
 
       setIsSuccess(true);
+
       setTimeout(() => {
         setIsSuccess(false);
-        // router.push("/cart");
       }, 1000);
     } catch (error: any) {
-      console.error("Cart Error:", error.message); // Check Console!
+      console.error("Cart Error:", error);
+
       toaster.create({
         title: "Error adding to cart",
-        description: error.message || "Database rejected the item",
+        description: error?.message || "Database rejected the item",
         type: "error",
       });
     } finally {
@@ -123,14 +166,19 @@ function DetailedCardPage() {
 
   return (
     <Box minH="100vh" bg="#D4F2C4" p={{ base: 4, md: 8 }}>
+      {/* Back Button */}
       <Button
         onClick={() => router.back()}
         variant="ghost"
         color="#0F2B1D"
         mb={6}
-        _hover={{ bg: "transparent", opacity: 0.7 }}
+        _hover={{
+          bg: "transparent",
+          opacity: 0.7,
+        }}
       >
-        <ArrowLeft /> Back
+        <ArrowLeft />
+        Back
       </Button>
 
       <Box
@@ -141,71 +189,128 @@ function DetailedCardPage() {
         maxW="1200px"
         mx="auto"
       >
-        <Flex direction={{ base: "column", md: "row" }}>
-          {/* LEFT: Image Section */}
-          <Box w={{ base: "100%", md: "50%" }} bg="#FDF6E3" p={8}>
+        <Flex
+          direction={{
+            base: "column",
+            md: "row",
+          }}
+        >
+          {/* ============================= */}
+          {/* LEFT - PRODUCT IMAGE */}
+          {/* ============================= */}
+
+          <Box
+            w={{
+              base: "100%",
+              md: "50%",
+            }}
+            bg="#FDF6E3"
+            p={8}
+          >
             <Box
               borderRadius="2xl"
               overflow="hidden"
-              h={{ base: "300px", md: "450px" }}
+              h={{
+                base: "300px",
+                md: "450px",
+              }}
               mb={4}
             >
               <Image
-                src={selectedImage || item.image}
+                src={item.image || "https://placehold.co/600x600"}
                 alt={item.name}
                 w="100%"
                 h="100%"
                 objectFit="cover"
               />
             </Box>
-            <Flex gap={4} justify="center">
-              {(item.images || [item.image]).map((img: string, id: number) => (
+
+            {/* Single image thumbnail */}
+            {item.image && (
+              <Flex gap={4} justify="center">
                 <Box
-                  key={id}
                   w="80px"
                   h="80px"
                   borderRadius="xl"
                   border="2px solid"
-                  borderColor={
-                    selectedImage === img ? "#0F2B1D" : "transparent"
-                  }
-                  opacity={selectedImage === img ? 1 : 0.6}
-                  onClick={() => setSelectedImage(img)}
-                  cursor="pointer"
+                  borderColor="#0F2B1D"
+                  overflow="hidden"
                 >
-                  <Image src={img} w="100%" h="100%" objectFit="cover" />
+                  <Image
+                    src={item.image}
+                    alt={item.name}
+                    w="100%"
+                    h="100%"
+                    objectFit="cover"
+                  />
                 </Box>
-              ))}
-            </Flex>
+              </Flex>
+            )}
           </Box>
 
-          {/* RIGHT: Details Section */}
-          <Box w={{ base: "100%", md: "50%" }} p={{ base: 6, md: 10 }}>
-            <Flex justify="space-between" mb={2}>
+          {/* ============================= */}
+          {/* RIGHT - PRODUCT DETAILS */}
+          {/* ============================= */}
+
+          <Box
+            w={{
+              base: "100%",
+              md: "50%",
+            }}
+            p={{
+              base: 6,
+              md: 10,
+            }}
+          >
+            {/* Type + Icons */}
+            <Flex justify="space-between" mb={4}>
               <Badge
-                colorPalette={item.colorScheme || "green"} // colorScheme -> colorPalette in v3
+                colorPalette={item.type === "seeds" ? "green" : "orange"}
                 borderRadius="full"
                 px={3}
+                textTransform="capitalize"
               >
-                {item.tag || item.category}
+                {item.type}
               </Badge>
-              <Flex gap={2}>
-                <Share2 size={20} />
-                <Heart size={20} />
+
+              <Flex gap={4}>
+                <Share2 size={20} cursor="pointer" />
+
+                <Heart size={20} cursor="pointer" />
               </Flex>
             </Flex>
 
+            {/* Product Name */}
             <Heading size="2xl" color="#0F2B1D" mb={2}>
               {item.name}
             </Heading>
-            <Text fontSize="lg" color="gray.500" mb={6}>
-              {item.unit}
-            </Text>
+
+            {/* Weight */}
+            {item.weight && (
+              <Text fontSize="lg" color="gray.500" mb={6}>
+                {item.weight}
+              </Text>
+            )}
+
+            {/* Price */}
             <Text fontSize="3xl" fontWeight="bold" color="#0F2B1D" mb={6}>
-              LKR {item.price?.toLocaleString()}
+              LKR {item.price.toLocaleString()}
             </Text>
+
+            {/* Description */}
             <Text color="gray.600" fontSize="lg" mb={8}>
               {item.description || "No description available."}
+            </Text>
+
+            {/* Stock */}
+            <Text
+              fontWeight="medium"
+              mb={6}
+              color={item.stock > 0 ? "green.600" : "red.500"}
+            >
+              {item.stock > 0
+                ? `${item.stock} items available`
+                : "Out of stock"}
             </Text>
 
             {/* Quantity */}
@@ -213,6 +318,7 @@ function DetailedCardPage() {
               <Text fontWeight="bold" mb={3} color="#0F2B1D">
                 Quantity
               </Text>
+
               <Flex
                 align="center"
                 w="fit-content"
@@ -222,27 +328,30 @@ function DetailedCardPage() {
                 p={1}
               >
                 <IconButton
-                  aria-label="Decrease"
+                  aria-label="Decrease quantity"
                   variant="ghost"
                   onClick={handleDecrement}
                   disabled={quantity <= 1}
                 >
                   <Minus size={18} />
                 </IconButton>
+
                 <Text px={6} fontWeight="bold" fontSize="lg">
                   {quantity}
                 </Text>
+
                 <IconButton
-                  aria-label="Increase"
+                  aria-label="Increase quantity"
                   variant="ghost"
                   onClick={handleIncrement}
+                  disabled={quantity >= item.stock}
                 >
                   <Plus size={18} />
                 </IconButton>
               </Flex>
             </Box>
 
-            {/* Add to Cart Button */}
+            {/* Add To Cart */}
             <Button
               w="full"
               size="lg"
@@ -250,23 +359,28 @@ function DetailedCardPage() {
               borderRadius={10}
               bg={isSuccess ? "green.500" : "#0F2B1D"}
               color="white"
-              _hover={{ bg: isSuccess ? "green.600" : "#1a4a32" }}
+              _hover={{
+                bg: isSuccess ? "green.600" : "#1a4a32",
+              }}
               onClick={handleAddToCart}
-              loading={isAdding} // isLoading -> loading in v3
+              loading={isAdding}
               loadingText="Adding..."
-              disabled={isSuccess}
+              disabled={isSuccess || item.stock <= 0}
             >
               {isSuccess ? (
                 <>
-                  <Icon as={Check} mr={2} boxSize={6} /> Added!
+                  <Icon as={Check} mr={2} boxSize={6} />
+                  Added!
                 </>
               ) : (
                 <>
-                  <Icon as={ShoppingCart} mr={2} /> Add to Cart
+                  <Icon as={ShoppingCart} mr={2} />
+                  Add to Cart
                 </>
               )}
             </Button>
 
+            {/* Delivery / Returns */}
             <SimpleGrid
               columns={2}
               gap={4}
@@ -279,12 +393,15 @@ function DetailedCardPage() {
                 <Text color="gray.400" fontSize="sm">
                   Delivery
                 </Text>
+
                 <Text fontWeight="medium">2-3 Days</Text>
               </Box>
+
               <Box>
                 <Text color="gray.400" fontSize="sm">
                   Returns
                 </Text>
+
                 <Text fontWeight="medium">30 Days</Text>
               </Box>
             </SimpleGrid>

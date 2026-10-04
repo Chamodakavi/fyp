@@ -1,87 +1,33 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  Badge,
   Box,
+  Button,
+  Center,
   Flex,
   Heading,
-  Text,
-  Button,
-  Image,
-  VStack,
   HStack,
-  Separator,
-  IconButton,
   Spinner,
-  Center,
-  Badge,
-  Stack,
+  Text,
+  VStack,
 } from "@chakra-ui/react";
-import {
-  Trash2,
-  Minus,
-  Plus,
-  ShoppingBag,
-  PackageCheck,
-  Clock,
-  Truck,
-  CheckCircle,
-  XCircle,
-} from "lucide-react";
+import { ShoppingBag } from "lucide-react";
 import Link from "next/link";
 import { useCart } from "@/hooks/useCart";
 import { useProducts } from "@/hooks/useProducts";
 import { useUser } from "@/hooks/useUser";
 import { createClient } from "@/utils/supabase/createClient";
+import { CartItem } from "@/components/orderCom/CartItem";
+import { OrderSummary } from "@/components/orderCom/OrderSummary";
+import { OrdersSection } from "@/components/orderCom/OrdersSection";
+import { OrderDetailsModal } from "@/components/orderCom/OrderDetailsModal";
 
 const THEME = {
   primary: "#0D2818",
   accent: "#D6E8D5",
   bg: "#f4fcf6",
-  card: "#ffffff",
-};
-
-const getStatusColor = (status: string) => {
-  if (status === "delivered") return "green";
-  if (status === "handed_over") return "blue";
-  if (status === "processing") return "orange";
-  if (status === "cancelled") return "red";
-  return "gray";
-};
-
-const getStatusLabel = (status: string) => {
-  if (status === "handed_over") return "Handed Over";
-  if (status === "processing") return "Processing";
-  if (status === "delivered") return "Delivered";
-  if (status === "cancelled") return "Cancelled";
-  return "Pending";
-};
-
-const getStatusMessage = (status: string) => {
-  if (status === "handed_over") {
-    return "Your order has been handed over to the delivery/COD service.";
-  }
-
-  if (status === "processing") {
-    return "Admin is preparing your order.";
-  }
-
-  if (status === "delivered") {
-    return "Your order has been delivered.";
-  }
-
-  if (status === "cancelled") {
-    return "This order has been cancelled.";
-  }
-
-  return "Your order is waiting for admin review.";
-};
-
-const getStatusIcon = (status: string) => {
-  if (status === "delivered") return <CheckCircle size={18} />;
-  if (status === "handed_over") return <Truck size={18} />;
-  if (status === "cancelled") return <XCircle size={18} />;
-  return <Clock size={18} />;
 };
 
 function CartPage() {
@@ -95,6 +41,8 @@ function CartPage() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [cancellingOrder, setCancellingOrder] = useState(false);
 
   useEffect(() => {
     if (!cart || cart.length === 0) {
@@ -109,15 +57,13 @@ function CartPage() {
             (p) => String(p.id) === String(cartItem.product_id),
           );
 
-          if (productDetails) {
-            return {
-              ...productDetails,
-              quantity: Number(cartItem.qty || cartItem.quantity || 1),
-              cart_row_id: cartItem.id,
-            };
-          }
+          if (!productDetails) return null;
 
-          return null;
+          return {
+            ...productDetails,
+            quantity: Number(cartItem.qty || cartItem.quantity || 1),
+            cart_row_id: cartItem.id,
+          };
         })
         .filter(Boolean);
 
@@ -141,9 +87,7 @@ function CartPage() {
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
-      if (orderError) {
-        throw orderError;
-      }
+      if (orderError) throw orderError;
 
       const orderIds = (orderData || []).map((order) => order.id);
 
@@ -157,16 +101,14 @@ function CartPage() {
         .select("*")
         .in("order_id", orderIds);
 
-      if (itemError) {
-        throw itemError;
-      }
+      if (itemError) throw itemError;
 
-      const ordersWithItems = (orderData || []).map((order) => ({
-        ...order,
-        items: (itemData || []).filter((item) => item.order_id === order.id),
-      }));
-
-      setOrders(ordersWithItems);
+      setOrders(
+        (orderData || []).map((order) => ({
+          ...order,
+          items: (itemData || []).filter((item) => item.order_id === order.id),
+        })),
+      );
     } catch (error: any) {
       console.error("Error fetching orders:", error.message);
     } finally {
@@ -175,41 +117,29 @@ function CartPage() {
   };
 
   useEffect(() => {
-    if (!userLoading) {
-      fetchMyOrders();
-    }
+    if (!userLoading) fetchMyOrders();
   }, [user?.id, userLoading]);
 
   const updateQuantity = (id: number, change: number) => {
     setCartItems((prevItems) =>
-      prevItems.map((item) => {
-        if (item.id === id) {
-          const newQuantity = Math.max(1, Number(item.quantity) + change);
-          return { ...item, quantity: newQuantity };
-        }
-
-        return item;
-      }),
+      prevItems.map((item) =>
+        item.id === id
+          ? { ...item, quantity: Math.max(1, Number(item.quantity) + change) }
+          : item,
+      ),
     );
   };
 
-  const handleRemoveItem = async (product_id: number, cart_row_id: number) => {
+  const handleRemoveItem = async (productId: number, cartRowId: number) => {
     setCartItems((prevItems) =>
-      prevItems.filter((item) => item.id !== product_id),
+      prevItems.filter((item) => item.id !== productId),
     );
 
-    try {
-      const { error } = await supabase
-        .from("cart")
-        .delete()
-        .eq("id", cart_row_id);
+    const { error } = await supabase.from("cart").delete().eq("id", cartRowId);
 
-      if (error) {
-        console.error("Error deleting item:", error);
-        alert("Failed to delete item from database.");
-      }
-    } catch (err) {
-      console.error(err);
+    if (error) {
+      console.error("Error deleting item:", error);
+      alert("Failed to delete item from database.");
     }
   };
 
@@ -217,7 +147,6 @@ function CartPage() {
     (acc, item) => acc + Number(item.price || 0) * Number(item.quantity || 1),
     0,
   );
-
   const shipping = subtotal > 5000 ? 0 : 350;
   const total = subtotal + shipping;
 
@@ -235,6 +164,8 @@ function CartPage() {
     setCheckoutLoading(true);
 
     try {
+      const now = new Date().toISOString();
+
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -246,15 +177,13 @@ function CartPage() {
           shipping_amount: shipping,
           status: "pending",
           admin_note: "",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          created_at: now,
+          updated_at: now,
         })
         .select()
         .single();
 
-      if (orderError) {
-        throw orderError;
-      }
+      if (orderError) throw orderError;
 
       const orderItems = cartItems.map((item) => ({
         order_id: order.id,
@@ -264,37 +193,79 @@ function CartPage() {
         product_price: Number(item.price || 0),
         quantity: Number(item.quantity || 1),
         subtotal: Number(item.price || 0) * Number(item.quantity || 1),
-        created_at: new Date().toISOString(),
+        created_at: now,
       }));
 
       const { error: itemsError } = await supabase
         .from("order_items")
         .insert(orderItems);
 
-      if (itemsError) {
-        throw itemsError;
-      }
+      if (itemsError) throw itemsError;
 
       const cartRowIds = cartItems.map((item) => item.cart_row_id);
-
       const { error: clearCartError } = await supabase
         .from("cart")
         .delete()
         .in("id", cartRowIds);
 
-      if (clearCartError) {
-        throw clearCartError;
-      }
+      if (clearCartError) throw clearCartError;
 
       setCartItems([]);
       await fetchMyOrders();
-
       alert("Order placed successfully! Admin can now review your order.");
     } catch (error: any) {
       console.error("Checkout error:", error);
       alert("Checkout failed: " + error.message);
     } finally {
       setCheckoutLoading(false);
+    }
+  };
+
+  const handleCancelOrder = async (orderId: string | number) => {
+    const order = orders.find((item) => item.id === orderId);
+    if (!order) return;
+
+    const createdAt = new Date(order.created_at).getTime();
+    const age = Date.now() - createdAt;
+
+    if (age > 24 * 60 * 60 * 1000) {
+      alert("This order can only be cancelled within 1 day of placing it.");
+      return;
+    }
+
+    if (["cancelled", "delivered", "handed_over"].includes(order.status)) {
+      alert("This order can no longer be cancelled.");
+      return;
+    }
+
+    setCancellingOrder(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("orders")
+        .update({
+          status: "cancelled",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", orderId)
+        .eq("user_id", user?.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const updatedOrder = { ...order, ...data };
+      setOrders((prev) =>
+        prev.map((item) => (item.id === orderId ? updatedOrder : item)),
+      );
+      setSelectedOrder(updatedOrder);
+
+      alert("Order cancelled successfully.");
+    } catch (error: any) {
+      console.error("Cancel order error:", error);
+      alert("Failed to cancel order: " + error.message);
+    } finally {
+      setCancellingOrder(false);
     }
   };
 
@@ -319,7 +290,6 @@ function CartPage() {
                 Review your cart and track your submitted orders.
               </Text>
             </Box>
-
             <Badge colorPalette="green" px={3} py={1} borderRadius="full">
               Cash on Delivery
             </Badge>
@@ -339,17 +309,14 @@ function CartPage() {
                 <Box bg={THEME.accent} p={6} rounded="full">
                   <ShoppingBag size={44} color={THEME.primary} />
                 </Box>
-
                 <Heading color={THEME.primary} size="lg">
                   Your Cart is Empty
                 </Heading>
-
                 <Text color="gray.600" maxW="md">
                   Your cart is clear. You can browse products or check your
                   order history below.
                 </Text>
-
-                <Link href={"/marketplace"}>
+                <Link href="/marketplace">
                   <Button
                     bg={THEME.primary}
                     color="white"
@@ -365,345 +332,40 @@ function CartPage() {
             <Flex gap={8} direction={{ base: "column", lg: "row" }}>
               <VStack flex="2" align="stretch" gap={4}>
                 {cartItems.map((item) => (
-                  <Flex
+                  <CartItem
                     key={item.id}
-                    bg="white"
-                    p={4}
-                    rounded="lg"
-                    shadow="sm"
-                    border="1px solid"
-                    borderColor="gray.100"
-                    gap={4}
-                    direction={{ base: "column", sm: "row" }}
-                    align={{ base: "start", sm: "center" }}
-                  >
-                    <Box
-                      bg="gray.100"
-                      rounded="md"
-                      overflow="hidden"
-                      w={{ base: "100%", sm: "100px" }}
-                      h="100px"
-                    >
-                      <Image
-                        src={
-                          item.image_links ||
-                          item.image ||
-                          "https://placehold.co/100"
-                        }
-                        alt={item.name}
-                        w="full"
-                        h="full"
-                        objectFit="cover"
-                      />
-                    </Box>
-
-                    <Box flex="1">
-                      <Text fontSize="sm" color="gray.500" fontWeight="medium">
-                        {item.category}
-                      </Text>
-
-                      <Heading size="md" color="gray.800" mb={1}>
-                        {item.name}
-                      </Heading>
-
-                      <Text fontWeight="bold" color={THEME.primary}>
-                        LKR {Number(item.price || 0).toLocaleString()}
-                      </Text>
-                    </Box>
-
-                    <HStack
-                      w={{ base: "full", sm: "auto" }}
-                      justify="space-between"
-                      gap={6}
-                    >
-                      <HStack
-                        border="1px solid"
-                        borderColor="gray.300"
-                        rounded="md"
-                      >
-                        <IconButton
-                          variant="ghost"
-                          size="sm"
-                          aria-label="Decrease quantity"
-                          onClick={() => updateQuantity(item.id, -1)}
-                          disabled={item.quantity <= 1}
-                        >
-                          <Minus size={16} />
-                        </IconButton>
-
-                        <Text fontWeight="bold" w="30px" textAlign="center">
-                          {item.quantity}
-                        </Text>
-
-                        <IconButton
-                          variant="ghost"
-                          size="sm"
-                          aria-label="Increase quantity"
-                          onClick={() => updateQuantity(item.id, 1)}
-                        >
-                          <Plus size={16} />
-                        </IconButton>
-                      </HStack>
-
-                      <IconButton
-                        variant="ghost"
-                        color="red.500"
-                        aria-label="Remove item"
-                        _hover={{ bg: "red.50" }}
-                        onClick={() =>
-                          handleRemoveItem(item.id, item.cart_row_id)
-                        }
-                      >
-                        <Trash2 size={18} />
-                      </IconButton>
-                    </HStack>
-                  </Flex>
+                    item={item}
+                    onQuantityChange={updateQuantity}
+                    onRemove={handleRemoveItem}
+                  />
                 ))}
               </VStack>
 
-              <Box flex="1" w="full">
-                <Box
-                  bg="white"
-                  p={6}
-                  rounded="lg"
-                  shadow="sm"
-                  border="1px solid"
-                  borderColor="gray.100"
-                  position={{ lg: "sticky" }}
-                  top="20px"
-                >
-                  <Heading size="md" mb={6} color="gray.800">
-                    Order Summary
-                  </Heading>
-
-                  <VStack gap={4} align="stretch" mb={6}>
-                    <HStack justify="space-between" color="gray.600">
-                      <Text>Subtotal</Text>
-                      <Text fontWeight="medium">
-                        LKR {subtotal.toLocaleString()}
-                      </Text>
-                    </HStack>
-
-                    <HStack justify="space-between" color="gray.600">
-                      <Text>Shipping Estimate</Text>
-                      <Text fontWeight="medium">
-                        {shipping === 0 ? "Free" : `LKR ${shipping}`}
-                      </Text>
-                    </HStack>
-
-                    <Separator borderColor="gray.200" />
-
-                    <HStack
-                      justify="space-between"
-                      fontSize="lg"
-                      fontWeight="bold"
-                    >
-                      <Text color="gray.800">Total</Text>
-                      <Text color={THEME.primary}>
-                        LKR {total.toLocaleString()}
-                      </Text>
-                    </HStack>
-                  </VStack>
-
-                  <Button
-                    w="full"
-                    bg={THEME.primary}
-                    color={THEME.accent}
-                    size="xl"
-                    fontSize="lg"
-                    _hover={{
-                      bg: "green.800",
-                      transform: "translateY(-2px)",
-                    }}
-                    transition="all 0.2s"
-                    onClick={handleCheckout}
-                    loading={checkoutLoading}
-                    disabled={checkoutLoading}
-                  >
-                    {checkoutLoading ? "Placing Order..." : "Checkout"}
-                  </Button>
-
-                  <Text
-                    fontSize="xs"
-                    color="gray.500"
-                    mt={4}
-                    textAlign="center"
-                  >
-                    Your order will be sent to admin for delivery/COD
-                    processing.
-                  </Text>
-                </Box>
-              </Box>
+              <OrderSummary
+                subtotal={subtotal}
+                shipping={shipping}
+                total={total}
+                loading={checkoutLoading}
+                onCheckout={handleCheckout}
+              />
             </Flex>
           )}
 
-          {/* Order History */}
-          <Box
-            bg="white"
-            rounded="2xl"
-            shadow="sm"
-            border="1px solid"
-            borderColor="gray.100"
-            p={{ base: 5, md: 6 }}
-          >
-            <HStack justify="space-between" mb={5}>
-              <Box>
-                <HStack color={THEME.primary}>
-                  <PackageCheck size={22} />
-                  <Heading size="md">My Orders</Heading>
-                </HStack>
-
-                <Text color="gray.600" fontSize="sm" mt={1}>
-                  Track your checkout requests and delivery status.
-                </Text>
-              </Box>
-
-              <Badge colorPalette="green" borderRadius="full" px={3}>
-                {orders.length} Orders
-              </Badge>
-            </HStack>
-
-            {ordersLoading ? (
-              <Center py={10}>
-                <Spinner color={THEME.primary} />
-              </Center>
-            ) : orders.length === 0 ? (
-              <Box
-                border="1px dashed"
-                borderColor="gray.300"
-                rounded="xl"
-                p={8}
-                textAlign="center"
-              >
-                <Text color="gray.500">No orders placed yet.</Text>
-              </Box>
-            ) : (
-              <VStack align="stretch" gap={4}>
-                {orders.map((order) => (
-                  <Box
-                    key={order.id}
-                    bg="#F8FCF4"
-                    rounded="xl"
-                    border="1px solid"
-                    borderColor="green.100"
-                    p={5}
-                  >
-                    <Flex
-                      justify="space-between"
-                      align={{ base: "start", md: "center" }}
-                      direction={{ base: "column", md: "row" }}
-                      gap={3}
-                      mb={4}
-                    >
-                      <Box>
-                        <HStack>
-                          <Text fontWeight="bold" color={THEME.primary}>
-                            Order #{order.id}
-                          </Text>
-
-                          <Badge
-                            colorPalette={getStatusColor(order.status)}
-                            variant="solid"
-                          >
-                            {getStatusLabel(order.status)}
-                          </Badge>
-                        </HStack>
-
-                        <Text fontSize="sm" color="gray.600" mt={1}>
-                          Placed on{" "}
-                          {new Date(order.created_at).toLocaleString()}
-                        </Text>
-                      </Box>
-
-                      <Text fontWeight="bold" color={THEME.primary}>
-                        LKR {Number(order.total_amount || 0).toLocaleString()}
-                      </Text>
-                    </Flex>
-
-                    <HStack
-                      bg="white"
-                      rounded="lg"
-                      p={3}
-                      color={THEME.primary}
-                      mb={4}
-                    >
-                      {getStatusIcon(order.status)}
-                      <Text fontSize="sm">
-                        {getStatusMessage(order.status)}
-                      </Text>
-                    </HStack>
-
-                    {order.admin_note && (
-                      <Box
-                        bg="white"
-                        borderLeft="4px solid"
-                        borderColor="green.500"
-                        rounded="lg"
-                        p={3}
-                        mb={4}
-                      >
-                        <Text
-                          fontSize="sm"
-                          fontWeight="bold"
-                          color={THEME.primary}
-                        >
-                          Admin Note
-                        </Text>
-                        <Text fontSize="sm" color="gray.700" mt={1}>
-                          {order.admin_note}
-                        </Text>
-                      </Box>
-                    )}
-
-                    <Stack gap={3}>
-                      {(order.items || []).map((item: any) => (
-                        <Flex
-                          key={item.id}
-                          justify="space-between"
-                          align="center"
-                          bg="white"
-                          rounded="lg"
-                          p={3}
-                          gap={3}
-                        >
-                          <HStack>
-                            <Image
-                              src={
-                                item.product_image || "https://placehold.co/60"
-                              }
-                              alt={item.product_name}
-                              boxSize="52px"
-                              rounded="md"
-                              objectFit="cover"
-                              bg="gray.100"
-                            />
-
-                            <Box>
-                              <Text fontWeight="bold" color="gray.800">
-                                {item.product_name}
-                              </Text>
-                              <Text fontSize="sm" color="gray.500">
-                                Qty: {item.quantity} × LKR{" "}
-                                {Number(
-                                  item.product_price || 0,
-                                ).toLocaleString()}
-                              </Text>
-                            </Box>
-                          </HStack>
-
-                          <Text fontWeight="bold" color={THEME.primary}>
-                            LKR {Number(item.subtotal || 0).toLocaleString()}
-                          </Text>
-                        </Flex>
-                      ))}
-                    </Stack>
-                  </Box>
-                ))}
-              </VStack>
-            )}
-          </Box>
+          <OrdersSection
+            orders={orders}
+            loading={ordersLoading}
+            onSelectOrder={setSelectedOrder}
+          />
         </VStack>
       </Box>
+
+      <OrderDetailsModal
+        order={selectedOrder}
+        open={Boolean(selectedOrder)}
+        onClose={() => setSelectedOrder(null)}
+        onCancel={handleCancelOrder}
+        cancelling={cancellingOrder}
+      />
     </Box>
   );
 }

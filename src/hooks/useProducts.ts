@@ -13,8 +13,6 @@ export type Product = {
   weight?: string;
 };
 
-// Default parameters allow it to be called as useProducts() in admin components
-// or useProducts(category, search) in user components.
 export function useProducts(
   initialCategory: string = "all",
   initialSearch: string = "",
@@ -49,9 +47,21 @@ export function useProducts(
         console.error("Error fetching products:", fetchError);
         setError(fetchError);
         setProducts([]);
-      } else {
-        setProducts(data || []);
+        return;
       }
+
+      const formattedProducts: Product[] = (data || []).map((product) => ({
+        id: Number(product.id),
+        name: product.name,
+        description: product.description || "",
+        type: product.type,
+        price: Number(product.price),
+        stock: Number(product.stock),
+        image: product.image || "",
+        weight: product.weight || "",
+      }));
+
+      setProducts(formattedProducts);
     } catch (err: any) {
       console.error("Unexpected error fetching products:", err);
     } finally {
@@ -68,7 +78,7 @@ export function useProducts(
     products,
     loading,
     error,
-    // Provide defaults for manual refetching
+
     refreshProducts: (category: string = "all", searchTerm: string = "") =>
       fetchProducts(category, searchTerm),
   };
