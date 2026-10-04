@@ -3,6 +3,7 @@ import { createClient } from "@/utils/supabase/createClient";
 import { User as SupabaseUser } from "@supabase/supabase-js";
 
 type UserProfile = {
+  u_avatar: string | Blob | undefined;
   id: string;
   u_email: string;
   u_name: string;
@@ -53,7 +54,9 @@ export function useUser() {
       else setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) fetchProfile(session.user.id);
     });
 
@@ -79,8 +82,10 @@ export function useUser() {
         (payload) => {
           console.log("🟢 Realtime Update Received!", payload);
           // Merge new data into existing user state
-          setUser((prev) => prev ? { ...prev, ...(payload.new as UserProfile) } : null);
-        }
+          setUser((prev) =>
+            prev ? { ...prev, ...(payload.new as UserProfile) } : null,
+          );
+        },
       )
       .subscribe((status) => {
         console.log("🔌 Realtime Status:", status);

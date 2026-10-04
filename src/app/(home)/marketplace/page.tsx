@@ -1,135 +1,240 @@
-"use client"; // Important for Next.js App Router to allow hooks like useState
+"use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Box,
-  SimpleGrid,
-  Text,
-  Button,
-  Image,
   Flex,
-  Badge,
   Heading,
-  Icon,
+  HStack,
+  Text,
   Input,
-  InputGroup,
+  Button,
+  Container,
+  Spinner,
+  Image,
+  Badge,
+  Icon,
+  Grid,
 } from "@chakra-ui/react";
-import {
-  Search,
-  ShoppingCart,
-  Filter,
-  Sprout,
-  Hammer,
-  HammerIcon,
-} from "lucide-react";
-import MarketplaceCard from "@/components/marketplace/MarketplaceCard";
-import { useProducts } from "@/hooks/useProducts";
+import { Store, ShoppingCart, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useProducts } from "@/hooks/useProducts"; // Ensure this matches your path
 
-// ---  MAIN PAGE COMPONENT ---
-function MarketplacePage() {
-  const [activeCategory, setActiveCategory] = useState("all");
+// -----------------------------------------------------------------
+// 1. Marketplace Card Component (User Facing)
+// -----------------------------------------------------------------
+function MarketplaceCard({ item }: { item: any }) {
+  const router = useRouter();
 
-  const { products, loading, error } = useProducts();
-
-  // Filter logic
-  //const itemsToDisplay = activeCategory === "seeds" ? SEEDS_DATA : TOOLS_DATA;
+  const handleNavigate = () => {
+    router.push(`/marketplace/${item.id}`);
+  };
 
   return (
-    <Box w="100%" minH="100vh" bg="#D4F2C4" p={8}>
-      {/* Page Header */}
-      <Box
-        justifyContent="space-between"
-        alignContent="center"
-        mb={8}
-        spaceY={3}
-        display={{ base: "block", md: "flex" }}
-      >
-        <Box>
-          <Heading color="#0F2B1D" mb={1}>
-            Marketplace
-          </Heading>
-          <Text color="gray.600">Find the best supplies for your farm</Text>
-        </Box>
-
-        {/*  Search Bar */}
-        <InputGroup
-          startElement={<Icon as={Search} color="gray.400" />}
-          w="300px"
-          bg="#FDF6E3"
+    <Box
+      onClick={handleNavigate}
+      bg="#FDF6E3"
+      borderRadius="xl"
+      overflow="hidden"
+      boxShadow="sm"
+      transition="all 0.3s"
+      cursor="pointer"
+      _hover={{ transform: "translateY(-5px)", boxShadow: "md" }}
+      border="1px solid"
+      borderColor="transparent"
+    >
+      {/* Image Section */}
+      <Box position="relative" h="160px" w="100%">
+        <Image
+          src={item.image || "https://placehold.co/400x300"}
+          alt={item.name}
+          objectFit="cover"
+          w="100%"
+          h="100%"
+        />
+        <Badge
+          position="absolute"
+          top={3}
+          right={3}
+          colorPalette={item.type === "seeds" ? "green" : "orange"}
           borderRadius="full"
-          border={"none"}
+          px={3}
+          boxShadow="md"
+          textTransform="capitalize"
         >
-          <Input
-            type="text"
-            placeholder="Search items..."
-            border="none"
-            _focus={{ boxShadow: "none" }}
-            focusRing={"none"}
-          />
-        </InputGroup>
+          {item.type}
+        </Badge>
       </Box>
 
-      {/* Category Filter Tabs */}
-      <Flex gap={2} mb={8} justify={{ base: "space-around", md: "left" }}>
-        <Button
-          onClick={() => setActiveCategory("all")}
-          bg={activeCategory === "all" ? "#0F2B1D" : "transparent"}
-          color={activeCategory === "all" ? "white" : "#0F2B1D"}
-          border="1px solid #0F2B1D"
-          borderRadius="full"
-          // leftIcon={<Icon as={Sprout} />}
-          px={6}
-          _hover={{
-            bg: activeCategory === "all" ? "#0F2B1D" : "rgba(15, 43, 29, 0.1)",
-          }}
-        >
-          <Sprout />
-          All
-        </Button>
+      {/* Content Section */}
+      <Box p={4}>
+        <Text fontSize="sm" color="gray.500" mb={1}>
+          {item.stock > 0 ? `In Stock: ${item.stock}` : "Out of Stock"}
+        </Text>
+        <Heading size="md" color="#0F2B1D" mb={2} truncate>
+          {item.name}
+        </Heading>
 
-        <Button
-          onClick={() => setActiveCategory("seeds")}
-          bg={activeCategory === "seeds" ? "#0F2B1D" : "transparent"}
-          color={activeCategory === "seeds" ? "white" : "#0F2B1D"}
-          border="1px solid #0F2B1D"
-          borderRadius="full"
-          // leftIcon={<Icon as={Sprout} />}
-          px={6}
-          _hover={{
-            bg:
-              activeCategory === "seeds" ? "#0F2B1D" : "rgba(15, 43, 29, 0.1)",
-          }}
-        >
-          <Sprout />
-          Seeds
-        </Button>
-
-        <Button
-          onClick={() => setActiveCategory("tools")}
-          bg={activeCategory === "tools" ? "#0F2B1D" : "transparent"}
-          color={activeCategory === "tools" ? "white" : "#0F2B1D"}
-          border="1px solid #0F2B1D"
-          borderRadius="full"
-          //  leftIcon={<Icon as={Hammer} />}
-          px={6}
-          _hover={{
-            bg:
-              activeCategory === "tools" ? "#0F2B1D" : "rgba(15, 43, 29, 0.1)",
-          }}
-        >
-          <HammerIcon />
-          Tools
-        </Button>
-      </Flex>
-
-      {/* Product Grid */}
-      <SimpleGrid columns={{ base: 1, md: 2, lg: 3, xl: 4 }} gap={6}>
-        {products.map((item) => (
-          <MarketplaceCard key={item.id} item={item} />
-        ))}
-      </SimpleGrid>
+        <Flex justify="space-between" align="center" mt={4}>
+          <Text fontWeight="bold" fontSize="lg" color="#0F2B1D">
+            Rs.{item.price}.00
+          </Text>
+          <Button
+            size="sm"
+            bg="#D4F2C4"
+            color="#0F2B1D"
+            _hover={{ bg: "#C1E8AE" }}
+            borderRadius="lg"
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent double triggering navigation
+              handleNavigate();
+            }}
+          >
+            <Flex align="center" gap={2}>
+              <Icon as={ShoppingCart} boxSize={4} />
+              <Text>Add</Text>
+            </Flex>
+          </Button>
+        </Flex>
+      </Box>
     </Box>
   );
 }
 
-export default MarketplacePage;
+// -----------------------------------------------------------------
+// 2. Main Marketplace Page Component
+// -----------------------------------------------------------------
+export default function MarketplacePage() {
+  const [activeTab, setActiveTab] = useState("all");
+  const [searchInput, setSearchInput] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+
+  // Pass active tab and the applied search term to the hook
+  const { products, loading } = useProducts(activeTab, appliedSearch);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAppliedSearch(searchInput);
+  };
+
+  const clearSearch = () => {
+    setSearchInput("");
+    setAppliedSearch("");
+  };
+
+  return (
+    <Box bg="gray.50" minH="100vh" py="10" px={{ base: 4, md: 8 }}>
+      <Container maxW="7xl">
+        {/* --- HEADER TEMPLATE --- */}
+        <Flex
+          justify="space-between"
+          align={{ base: "start", md: "flex-end" }}
+          direction={{ base: "column", md: "row" }}
+          mb={8}
+          gap={6}
+        >
+          <Box>
+            <HStack color="#0F2B1D" mb="2">
+              <Store size={28} />
+              <Heading size={{ base: "2xl", md: "3xl" }}>Marketplace</Heading>
+            </HStack>
+            <Text color="gray.600">
+              Browse agricultural tools, seeds, and equipment for your farm.
+            </Text>
+          </Box>
+
+          {/* Search Bar */}
+          <Box w={{ base: "full", md: "350px" }}>
+            <form onSubmit={handleSearchSubmit}>
+              <Flex
+                align="center"
+                bg="white"
+                px={4}
+                py={2}
+                borderRadius="full"
+                border="1px solid"
+                borderColor="gray.200"
+                shadow="sm"
+              >
+                <Search color="gray" size={18} />
+                <Input
+                  placeholder="Search products..."
+                  ml={3}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                />
+                {appliedSearch && (
+                  <Button size="xs" variant="ghost" onClick={clearSearch}>
+                    Clear
+                  </Button>
+                )}
+              </Flex>
+            </form>
+          </Box>
+        </Flex>
+
+        {/* --- FILTER BUTTONS --- */}
+        <HStack gap="3" mb="8" flexWrap="wrap">
+          {(["all", "seeds", "tools"] as const).map((tab) => (
+            <Button
+              key={tab}
+              size="sm"
+              borderRadius="full"
+              colorPalette={activeTab === tab ? "green" : "gray"}
+              variant={activeTab === tab ? "solid" : "outline"}
+              onClick={() => setActiveTab(tab)}
+              textTransform="capitalize"
+              px={6}
+            >
+              {tab}
+            </Button>
+          ))}
+        </HStack>
+
+        {/* --- PRODUCT GRID --- */}
+        {loading ? (
+          <Flex justify="center" p={20}>
+            <Spinner color="#0F2B1D" size="xl" />
+          </Flex>
+        ) : products.length === 0 ? (
+          <Flex
+            direction="column"
+            align="center"
+            justify="center"
+            p={20}
+            bg="white"
+            borderRadius="xl"
+            border="1px dashed"
+            borderColor="gray.300"
+          >
+            <Store
+              size={48}
+              color="gray"
+              style={{ opacity: 0.5, marginBottom: "16px" }}
+            />
+            <Heading size="md" color="gray.600">
+              No Products Found
+            </Heading>
+            <Text color="gray.500" mt={2}>
+              Try adjusting your search or category filters.
+            </Text>
+          </Flex>
+        ) : (
+          <Grid
+            templateColumns={{
+              base: "1fr",
+              sm: "repeat(2, 1fr)",
+              md: "repeat(3, 1fr)",
+              lg: "repeat(4, 1fr)",
+            }}
+            gap={6}
+          >
+            {products.map((product) => (
+              <MarketplaceCard key={product.id} item={product} />
+            ))}
+          </Grid>
+        )}
+      </Container>
+    </Box>
+  );
+}
