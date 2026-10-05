@@ -44,6 +44,7 @@ import {
   ActiveCropWindow,
   TrajectoryPoint,
 } from "@/lib/services/dashboardService";
+import PriceForecastPanel from "@/components/prices/PriceForecastPanel";
 
 const StatCard = ({
   label,
@@ -545,6 +546,19 @@ function AdminDashboard() {
                 </Link>
               </Box>
             </SimpleGrid>
+
+            {/* --- PREDICTED CROP PRICES --- */}
+            <Box
+              bg="white"
+              p="6"
+              mt="6"
+              borderRadius="xl"
+              border="1px solid"
+              borderColor="gray.100"
+              boxShadow="sm"
+            >
+              <PriceForecastPanel variant="admin" />
+            </Box>
           </>
         )}
       </Container>

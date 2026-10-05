@@ -1,43 +1,36 @@
-import { useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/createClient";
-import { useUser } from "./useUser";
+import { useCallback, useEffect, useState } from "react";
+import {
+  fetchMyRegistrations,
+  errorMessage,
+  MyRegistration,
+} from "@/lib/services/quotaService";
 
-type RegisteredCrop = {
-  id: number;
-  farmer_id: string;
-  crop_name: string;
-  amount_mt: number;
-  registered_at: string;
-};
-
-export function useRegisteredCrops() {
-  const supabase = createClient();
-  const { user } = useUser(); // Get the current logged-in user
-  const [crops, setCrops] = useState<RegisteredCrop[]>([]);
+/**
+ * The logged-in farmer's registrations (newest first), each with its status
+ * and target month. Bump `refreshKey` or call `refresh()` to reload.
+ */
+export function useRegisteredCrops(refreshKey = 0) {
+  const [crops, setCrops] = useState<MyRegistration[]>([]);
   const [loadingCrops, setLoadingCrops] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      setCrops(await fetchMyRegistrations());
+      setError(null);
+    } catch (e) {
+      console.error("Error fetching crops:", e);
+      setError(errorMessage(e, "Could not load registrations"));
+    } finally {
+      setLoadingCrops(false);
+    }
+  }, []);
 
   useEffect(() => {
-    // Only fetch actually have a user ID
-    if (!user?.id) return;
+    refresh();
+  }, [refresh, refreshKey]);
 
-    const fetchCrops = async () => {
-      setLoadingCrops(true);
-
-      const { data, error } = await supabase
-        .from("farmer_registrations")
-        .select("*")
-        .eq("farmer_id", user.id); // Match the farmer_id with the user's ID
-
-      if (error) {
-        console.error("Error fetching crops:", error.message);
-      } else {
-        setCrops(data || []);
-      }
-      setLoadingCrops(false);
-    };
-
-    fetchCrops();
-  }, [user?.id]);
-
-  return { crops, loadingCrops };
+  return { crops, loadingCrops, error, refresh };
 }
+
+export default useRegisteredCrops;
