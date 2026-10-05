@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Box,
   Heading,
@@ -15,13 +16,34 @@ import {
   SimpleGrid,
   Separator,
   Stack,
+  Checkbox,
 } from "@chakra-ui/react";
-import { Sparkles, Calendar, Wheat, Info, CheckCircle2 } from "lucide-react";
+import {
+  Sparkles,
+  Calendar,
+  Wheat,
+  Info,
+  CheckCircle2,
+  DoorOpen,
+  ListChecks,
+  AlertTriangle,
+} from "lucide-react";
 import {
   fetchAdvisoryQuota,
   applyNationalTarget,
+  fetchDieselPrice,
+  defaultWindowFromPlanting,
+  toLocalInput,
+  formatDateTime,
+  rpcMessage,
+  cropLabel,
+  errorMessage,
   AdvisoryData,
+  SUPPORTED_CROPS,
+  RAINFALL_NORMALS,
+  DEFAULT_DIESEL_PRICE,
 } from "@/lib/services/quotaService";
+import ForecastGenerator from "@/components/Admin/ForecastGenerator";
 
 const TargetCard = ({
   children,
@@ -71,23 +93,72 @@ const Badge = ({ children, colorPalette = "blue", ...props }: any) => (
   </Box>
 );
 
+const CheckOption = ({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  label: string;
+}) => (
+  <Checkbox.Root
+    checked={checked}
+    onCheckedChange={(e) => onChange(e.checked === true)}
+    colorPalette="green"
+    size="sm"
+  >
+    <Checkbox.HiddenInput />
+    <Checkbox.Control />
+    <Checkbox.Label>{label}</Checkbox.Label>
+  </Checkbox.Root>
+);
+
+const DAY_MS = 86_400_000;
+
 function AITargets() {
   const [crop, setCrop] = useState("CARROT");
-  const [year, setYear] = useState(2026);
-  const [month, setMonth] = useState(10);
-  const [dieselPrice, setDieselPrice] = useState(392);
-  const [rainfall, setRainfall] = useState(150);
+  const [year, setYear] = useState(() => new Date().getFullYear());
+  const [month, setMonth] = useState(() => new Date().getMonth() + 1);
+  const [dieselPrice, setDieselPrice] = useState(DEFAULT_DIESEL_PRICE);
+  const [rainfall, setRainfall] = useState(
+    () => RAINFALL_NORMALS[new Date().getMonth() + 1],
+  );
 
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
   const [apiResponse, setApiResponse] = useState<AdvisoryData | null>(null);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  // Target saved, but the registration window could not be opened
+  const [windowWarning, setWindowWarning] = useState("");
+
+  // Farmer registration window for the target being published
+  const [openWindow, setOpenWindow] = useState(true);
+  const [opensAt, setOpensAt] = useState("");
+  const [closesAt, setClosesAt] = useState("");
+  const [notifyFarmers, setNotifyFarmers] = useState(true);
+
+  useEffect(() => {
+    fetchDieselPrice()
+      .then(setDieselPrice)
+      .catch(() => {});
+  }, []);
+
+  const clearMessages = () => {
+    setError("");
+    setSuccessMsg("");
+    setWindowWarning("");
+  };
+
+  const handleMonthChange = (value: number) => {
+    setMonth(value);
+    setRainfall(RAINFALL_NORMALS[value]);
+  };
 
   const handleAskAI = async () => {
     setLoading(true);
-    setError("");
-    setSuccessMsg("");
+    clearMessages();
     setApiResponse(null);
 
     try {
@@ -99,8 +170,18 @@ function AITargets() {
         dieselPrice,
       });
       setApiResponse(data);
-    } catch (err: any) {
-      setError(err.message || "Failed to connect to AI advisory service.");
+
+      // Default window = the planting month; 30 days from now if that can't be used
+      const planting = defaultWindowFromPlanting(data.Planting_Date);
+      const now = new Date();
+      setOpensAt(toLocalInput(planting?.opensAt ?? now));
+      setClosesAt(
+        toLocalInput(
+          planting?.closesAt ?? new Date(now.getTime() + 30 * DAY_MS),
+        ),
+      );
+    } catch (err) {
+      setError(errorMessage(err, "Failed to connect to AI advisory service."));
     } finally {
       setLoading(false);
     }
@@ -108,39 +189,147 @@ function AITargets() {
 
   const handleApplyTarget = async () => {
     if (!apiResponse) {
-      alert("Please generate an AI target first.");
+      setError("Please generate an AI target first.");
       return;
     }
 
+    let regWindow: { opensAt: Date; closesAt: Date } | null = null;
+    if (openWindow) {
+      const opens = new Date(opensAt);
+      const closes = new Date(closesAt);
+      if (Number.isNaN(opens.getTime()) || Number.isNaN(closes.getTime())) {
+        setError("Set both registration dates.");
+        return;
+      }
+      if (closes <= opens) {
+        setError("Registration must close after it opens.");
+        return;
+      }
+      if (closes <= new Date()) {
+        setError("Closing date is already in the past.");
+        return;
+      }
+      regWindow = { opensAt: opens, closesAt: closes };
+    }
+
     setApplying(true);
-    setError("");
-    setSuccessMsg("");
+    clearMessages();
 
     try {
-      await applyNationalTarget(crop, apiResponse);
-      setSuccessMsg(
-        `Successfully locked national quota for ${crop} (Target: ${apiResponse.Target_Harvest_Date})`,
-      );
-    } catch (err: any) {
+      const { windowResult } = await applyNationalTarget(crop, apiResponse, {
+        rainfall,
+        dieselPrice,
+        window: regWindow,
+        notifyFarmers,
+      });
+
+      const locked = `Successfully locked national quota for ${crop} (Target: ${apiResponse.Target_Harvest_Date}).`;
+
+      if (!regWindow) {
+        setSuccessMsg(
+          `${locked} Registration is closed — open it from Targets & Windows when ready.`,
+        );
+      } else if (windowResult?.status === "success") {
+        setSuccessMsg(
+          `${locked} Registration open ${formatDateTime(regWindow.opensAt.toISOString())} → ${formatDateTime(regWindow.closesAt.toISOString())}.`,
+        );
+      } else {
+        setSuccessMsg(locked);
+        setWindowWarning(
+          `Registration window NOT opened: ${rpcMessage(windowResult) || "unknown error"} Open it from Targets & Windows.`,
+        );
+      }
+    } catch (err) {
       console.error("Apply target error:", err);
-      setError(err.message || "Failed to update national system targets.");
+      setError(
+        errorMessage(err, "Failed to update national system targets."),
+      );
     } finally {
       setApplying(false);
     }
   };
 
+  const messages = (
+    <>
+      {error && (
+        <Box
+          mt={4}
+          p={3}
+          bg="red.50"
+          color="red.700"
+          borderRadius="md"
+          fontSize="sm"
+          w="full"
+        >
+          <HStack align="start">
+            <Box flexShrink={0} mt="2px">
+              <Info size={16} />
+            </Box>
+            <Text>{error}</Text>
+          </HStack>
+        </Box>
+      )}
+
+      {successMsg && (
+        <Box
+          mt={4}
+          p={3}
+          bg="green.50"
+          color="green.700"
+          borderRadius="md"
+          fontSize="sm"
+          w="full"
+        >
+          <HStack align="start">
+            <Box flexShrink={0} mt="2px">
+              <CheckCircle2 size={16} />
+            </Box>
+            <Text>{successMsg}</Text>
+          </HStack>
+        </Box>
+      )}
+
+      {windowWarning && (
+        <Box
+          mt={4}
+          p={3}
+          bg="orange.50"
+          color="orange.800"
+          borderRadius="md"
+          fontSize="sm"
+          w="full"
+        >
+          <HStack align="start">
+            <Box flexShrink={0} mt="2px">
+              <AlertTriangle size={16} />
+            </Box>
+            <Text>{windowWarning}</Text>
+          </HStack>
+        </Box>
+      )}
+    </>
+  );
+
   return (
     <Box bg="#F8FAFC" minH="100vh" p={{ base: 4, md: 8 }}>
       <Container maxW="4xl">
-        <VStack align="start" mb={8} gap={1}>
-          <Heading size="xl" color="gray.800" fontWeight="bold">
-            National Agricultural Quota Engine
-          </Heading>
-          <Text color="gray.500">
-            Regulate seasonal planting volumes to prevent post-harvest price
-            collapse.
-          </Text>
-        </VStack>
+        <HStack justify="space-between" align="start" mb={8} wrap="wrap" gap={3}>
+          <VStack align="start" gap={1}>
+            <Heading size="xl" color="gray.800" fontWeight="bold">
+              National Agricultural Quota Engine
+            </Heading>
+            <Text color="gray.500">
+              Regulate seasonal planting volumes to prevent post-harvest price
+              collapse.
+            </Text>
+          </VStack>
+
+          <Button asChild variant="outline" colorPalette="blue">
+            <Link href="/admin/targets">
+              <ListChecks size={16} /> Targets & Windows
+            </Link>
+          </Button>
+        </HStack>
 
         <TargetCard title="Registration Parameters" icon={Wheat}>
           <VStack gap={6} align="stretch">
@@ -156,10 +345,11 @@ function AITargets() {
                     bg="gray.50"
                     h="45px"
                   >
-                    <option value="CARROT">🥕 Carrot</option>
-                    <option value="TOMATOES">🍅 Tomatoes</option>
-                    <option value="CABBAGE">🥬 Cabbage</option>
-                    <option value="BRINJALS">🍆 Brinjals</option>
+                    {SUPPORTED_CROPS.map((c) => (
+                      <option key={c} value={c}>
+                        {cropLabel(c)}
+                      </option>
+                    ))}
                   </NativeSelect.Field>
                   <NativeSelect.Indicator />
                 </NativeSelect.Root>
@@ -185,7 +375,9 @@ function AITargets() {
                 <NativeSelect.Root variant="subtle">
                   <NativeSelect.Field
                     value={month}
-                    onChange={(e) => setMonth(Number(e.target.value))}
+                    onChange={(e) =>
+                      handleMonthChange(Number(e.currentTarget.value))
+                    }
                     bg="gray.50"
                     h="45px"
                   >
@@ -227,6 +419,10 @@ function AITargets() {
                   bg="gray.50"
                   h="45px"
                 />
+                <Text fontSize="xs" color="gray.500">
+                  Defaults to the monthly normal ({RAINFALL_NORMALS[month]}{" "}
+                  mm).
+                </Text>
               </Stack>
             </SimpleGrid>
 
@@ -250,37 +446,8 @@ function AITargets() {
             </Button>
           </VStack>
 
-          {error && (
-            <Box
-              mt={4}
-              p={3}
-              bg="red.50"
-              color="red.700"
-              borderRadius="md"
-              fontSize="sm"
-            >
-              <HStack>
-                <Info size={16} />
-                <Text>{error}</Text>
-              </HStack>
-            </Box>
-          )}
-
-          {successMsg && (
-            <Box
-              mt={4}
-              p={3}
-              bg="green.50"
-              color="green.700"
-              borderRadius="md"
-              fontSize="sm"
-            >
-              <HStack>
-                <CheckCircle2 size={16} />
-                <Text>{successMsg}</Text>
-              </HStack>
-            </Box>
-          )}
+          {/* Once results are showing, messages move next to the Publish button */}
+          {!apiResponse && messages}
         </TargetCard>
 
         {apiResponse && (
@@ -415,6 +582,72 @@ function AITargets() {
                 </Box>
               </SimpleGrid>
 
+              {/* Farmer registration window opened together with the target */}
+              <Box
+                w="full"
+                p={5}
+                borderRadius="xl"
+                border="1px solid"
+                borderColor="green.200"
+                bg="green.50"
+              >
+                <HStack mb={3}>
+                  <DoorOpen size={18} color="#2F855A" />
+                  <Text fontWeight="bold" color="gray.800">
+                    Farmer registration window
+                  </Text>
+                </HStack>
+
+                <VStack align="stretch" gap={3}>
+                  <CheckOption
+                    checked={openWindow}
+                    onChange={setOpenWindow}
+                    label="Open farmer registration when publishing"
+                  />
+
+                  {openWindow && (
+                    <>
+                      <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
+                        <Stack gap={1}>
+                          <Text fontSize="sm" fontWeight="semibold">
+                            Opens
+                          </Text>
+                          <Input
+                            type="datetime-local"
+                            value={opensAt}
+                            onChange={(e) => setOpensAt(e.target.value)}
+                            bg="white"
+                          />
+                        </Stack>
+                        <Stack gap={1}>
+                          <Text fontSize="sm" fontWeight="semibold">
+                            Closes
+                          </Text>
+                          <Input
+                            type="datetime-local"
+                            value={closesAt}
+                            onChange={(e) => setClosesAt(e.target.value)}
+                            bg="white"
+                          />
+                        </Stack>
+                      </SimpleGrid>
+
+                      <Text fontSize="xs" color="gray.600">
+                        Default: the planting month from the AI result. Farmers
+                        can register only between these times. If space is left
+                        after it closes, reopen it from Targets & Windows.
+                      </Text>
+
+                      <CheckOption
+                        checked={notifyFarmers}
+                        onChange={setNotifyFarmers}
+                        label="Post a notification to all farmers"
+                      />
+                    </>
+                  )}
+                </VStack>
+              </Box>
+
               <Button
                 w="full"
                 bg="green.600"
@@ -431,8 +664,12 @@ function AITargets() {
                 Publish & Enforce National Target <Calendar size={18} />
               </Button>
             </VStack>
+
+            {messages}
           </TargetCard>
         )}
+
+        <ForecastGenerator />
       </Container>
     </Box>
   );

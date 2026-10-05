@@ -32,6 +32,13 @@ const YIELD_PER_HECTARE: Record<string, number> = {
   BRINJALS: 11.4,
 };
 
+// Cancelled registrations stay in the table as history but no longer hold quota
+const holdsQuota = (r: { status?: string | null }) => r.status !== "cancelled";
+
+// Deactivated targets are hidden from farmers, so they aren't "under regulation"
+const isActiveTarget = (t: { is_active?: boolean | null }) =>
+  t.is_active !== false;
+
 function getYieldForCrop(cropName: string): number {
   return YIELD_PER_HECTARE[cropName.toUpperCase()] || 15.0; // Fallback
 }
@@ -49,11 +56,11 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
   // B. Total registered land extent (Calculated from farmer_registrations MT)
   const { data: regs } = await supabase
     .from("farmer_registrations")
-    .select("crop_name, amount_mt");
+    .select("crop_name, amount_mt, status");
 
   let totalAllocatedHa = 0;
   if (regs) {
-    totalAllocatedHa = regs.reduce((sum, r) => {
+    totalAllocatedHa = regs.filter(holdsQuota).reduce((sum, r) => {
       const yieldMt = getYieldForCrop(r.crop_name || "");
       const ha = (Number(r.amount_mt) || 0) / yieldMt;
       return sum + ha;
@@ -64,10 +71,12 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
   // C. Distinct active crops under regulation from 'national_targets'
   const { data: targetCrops } = await supabase
     .from("national_targets")
-    .select("crop_name");
+    .select("crop_name, is_active");
 
   const distinctCrops = new Set(
-    (targetCrops || []).map((t) => t.crop_name.toUpperCase()),
+    (targetCrops || [])
+      .filter(isActiveTarget)
+      .map((t) => t.crop_name.toUpperCase()),
   );
 
   // D. Pending complaints needing attention
@@ -89,25 +98,30 @@ export async function getActiveCropWindows(): Promise<ActiveCropWindow[]> {
   const supabase = createClient();
 
   // Fetch published targets
-  const { data: targets, error: targetError } = await supabase
+  const { data: allTargets, error: targetError } = await supabase
     .from("national_targets")
-    .select("crop_name, allowed_extent_ha, target_harvest_date, year, month")
+    .select(
+      "crop_name, allowed_extent_ha, target_harvest_date, year, month, is_active",
+    )
     .order("year", { ascending: true })
     .order("month", { ascending: true });
 
-  if (targetError || !targets) return [];
+  if (targetError || !allTargets) return [];
+
+  const targets = allTargets.filter(isActiveTarget);
 
   // FIX: Fetch actual registrations from farmer_registrations (not crop_registrations)
   const { data: registrations } = await supabase
     .from("farmer_registrations")
-    .select("crop_name, amount_mt");
+    .select("crop_name, amount_mt, status");
 
   return targets.slice(0, 5).map((target) => {
     const targetCropUpper = target.crop_name.toUpperCase();
 
     // Sum matching farmer registrations for this crop
     const matchingRegistrations = (registrations || []).filter(
-      (reg) => reg.crop_name?.toUpperCase() === targetCropUpper,
+      (reg) =>
+        holdsQuota(reg) && reg.crop_name?.toUpperCase() === targetCropUpper,
     );
 
     // Sum Metric Tons
@@ -156,12 +170,16 @@ export async function getSupplyTrajectory(): Promise<TrajectoryPoint[]> {
   const supabase = createClient();
 
   const [targetsRes, registrationsRes] = await Promise.all([
-    supabase.from("national_targets").select("year, month, target_limit_mt"),
-    supabase.from("farmer_registrations").select("amount_mt, registered_at"),
+    supabase
+      .from("national_targets")
+      .select("year, month, target_limit_mt, is_active"),
+    supabase
+      .from("farmer_registrations")
+      .select("amount_mt, registered_at, status"),
   ]);
 
-  const targets = targetsRes.data || [];
-  const farmerRegs = registrationsRes.data || [];
+  const targets = (targetsRes.data || []).filter(isActiveTarget);
+  const farmerRegs = (registrationsRes.data || []).filter(holdsQuota);
 
   // Month names for labels
   const monthNames = [

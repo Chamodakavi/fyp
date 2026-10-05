@@ -23,6 +23,8 @@ import {
   LuShoppingCart,
   LuX,
   LuCircleHelp,
+  LuClipboardPen,
+  LuChartLine,
 } from "react-icons/lu";
 
 const THEME = {
@@ -39,8 +41,15 @@ const pages = [
   { id: 4, name: "Community", icon: LuMessageCircle, link: "/community" },
   { id: 5, name: "Cart", icon: LuShoppingCart, link: "/cart" },
   { id: 6, name: "Registration", icon: LuBell, link: "/registration" },
-  { id: 7, name: "Contact", icon: LuCircleHelp, link: "/contact" },
-  { id: 8, name: "Settings", icon: LuSettings, link: "/settings" },
+  { id: 7, name: "Crop Prices", icon: LuChartLine, link: "/prices" },
+  {
+    id: 8,
+    name: "Quota Support",
+    icon: LuClipboardPen,
+    link: "/quota-support",
+  },
+  { id: 9, name: "Contact", icon: LuCircleHelp, link: "/contact" },
+  { id: 10, name: "Settings", icon: LuSettings, link: "/settings" },
 ];
 
 export default function SideNav({

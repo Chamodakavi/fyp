@@ -32,6 +32,7 @@ import { useProducts } from "@/hooks/useProducts";
 import { useNews } from "@/hooks/useNews";
 import { useRegisteredCrops } from "@/hooks/useRegisteredCrop";
 import { createClient } from "@/utils/supabase/createClient";
+import PriceForecastPanel from "@/components/prices/PriceForecastPanel";
 
 const THEME = {
   pageBg: "#d5efb0",
@@ -279,8 +280,11 @@ function Dashboard() {
 
   const latestCrops = crops.slice(0, 3);
 
-  const totalRegisteredAmount = crops.reduce(
-    (total: number, crop: any) => total + Number(crop.amount_mt || 0),
+  // Cancelled registrations stay in the history but no longer hold quota
+  const activeCrops = crops.filter((crop) => crop.status !== "cancelled");
+
+  const totalRegisteredAmount = activeCrops.reduce(
+    (total, crop) => total + Number(crop.amount_mt || 0),
     0,
   );
 
@@ -425,7 +429,7 @@ function Dashboard() {
                 </Text>
 
                 <Heading size="xl" color={THEME.textDark} mt={2}>
-                  {loadingCrops ? <Spinner size="sm" /> : crops.length}
+                  {loadingCrops ? <Spinner size="sm" /> : activeCrops.length}
                 </Heading>
 
                 <Text fontSize="sm" color={THEME.textMuted} mt={1}>
@@ -574,6 +578,12 @@ function Dashboard() {
               </SimpleGrid>
             </DashboardCard>
 
+            {/* Predicted Prices */}
+
+            <DashboardCard bg="white">
+              <PriceForecastPanel variant="farmer" />
+            </DashboardCard>
+
             {/* Products */}
 
             <DashboardCard bg="white">
@@ -681,7 +691,7 @@ function Dashboard() {
                 </Box>
               ) : (
                 <VStack align="stretch" gap={3}>
-                  {latestCrops.map((crop: any) => (
+                  {latestCrops.map((crop) => (
                     <Flex
                       key={crop.id}
                       justify="space-between"
@@ -700,9 +710,15 @@ function Dashboard() {
                         </Text>
                       </Box>
 
-                      <Badge colorPalette="green" variant="solid">
-                        Approved
-                      </Badge>
+                      {crop.status === "cancelled" ? (
+                        <Badge colorPalette="gray" variant="solid">
+                          Cancelled
+                        </Badge>
+                      ) : (
+                        <Badge colorPalette="green" variant="solid">
+                          Approved
+                        </Badge>
+                      )}
                     </Flex>
                   ))}
                 </VStack>
