@@ -31,6 +31,7 @@ import {
 import { useProducts } from "@/hooks/useProducts";
 import { useNews } from "@/hooks/useNews";
 import { useRegisteredCrops } from "@/hooks/useRegisteredCrop";
+import { monthName, monthIndex } from "@/lib/services/quotaService";
 import { createClient } from "@/utils/supabase/createClient";
 import PriceForecastPanel from "@/components/prices/PriceForecastPanel";
 
@@ -280,13 +281,18 @@ function Dashboard() {
 
   const latestCrops = crops.slice(0, 3);
 
-  // Cancelled registrations stay in the history but no longer hold quota
+  // Cancelled registrations stay in the history but no longer hold quota.
+  // Each registration belongs to one harvest-month target, so the count is
+  // "how many harvest months am I registered for" (R5) — never a crop total.
   const activeCrops = crops.filter((crop) => crop.status !== "cancelled");
 
-  const totalRegisteredAmount = activeCrops.reduce(
-    (total, crop) => total + Number(crop.amount_mt || 0),
-    0,
-  );
+  const nextHarvest = activeCrops
+    .filter((c) => c.target?.year && c.target?.month)
+    .sort(
+      (a, b) =>
+        monthIndex(a.target!.year!, a.target!.month!) -
+        monthIndex(b.target!.year!, b.target!.month!),
+    )[0]?.target;
 
   const temperature = weather?.current?.temperature_2m;
 
@@ -433,7 +439,9 @@ function Dashboard() {
                 </Heading>
 
                 <Text fontSize="sm" color={THEME.textMuted} mt={1}>
-                  Total: {totalRegisteredAmount} MT
+                  {nextHarvest
+                    ? `Next harvest: ${monthName(nextHarvest.year, nextHarvest.month)}`
+                    : "No upcoming harvest registered"}
                 </Text>
               </Box>
 
@@ -702,7 +710,8 @@ function Dashboard() {
                     >
                       <Box>
                         <Text fontWeight="bold" color={THEME.textDark}>
-                          {crop.crop_name}
+                          {crop.crop_name} · harvest{" "}
+                          {monthName(crop.target?.year, crop.target?.month)}
                         </Text>
 
                         <Text fontSize="sm" color={THEME.textMuted}>
@@ -710,13 +719,14 @@ function Dashboard() {
                         </Text>
                       </Box>
 
+                      {/* No approval step exists: a registration is either held or cancelled */}
                       {crop.status === "cancelled" ? (
                         <Badge colorPalette="gray" variant="solid">
                           Cancelled
                         </Badge>
                       ) : (
                         <Badge colorPalette="green" variant="solid">
-                          Approved
+                          Registered
                         </Badge>
                       )}
                     </Flex>

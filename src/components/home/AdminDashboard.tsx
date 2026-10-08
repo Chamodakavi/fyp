@@ -14,11 +14,11 @@ import {
   Container,
   Separator,
   Spinner,
+  Badge,
 } from "@chakra-ui/react";
 import {
   Users,
   Sprout,
-  ShieldCheck,
   Sparkles,
   ArrowRight,
   Calendar,
@@ -27,8 +27,8 @@ import {
   AlertCircle,
 } from "lucide-react";
 import {
-  AreaChart,
-  Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -37,13 +37,17 @@ import {
   Legend,
 } from "recharts";
 import {
-  getDashboardKPIs,
-  getActiveCropWindows,
-  getSupplyTrajectory,
+  getDashboardData,
   DashboardKPIs,
-  ActiveCropWindow,
   TrajectoryPoint,
 } from "@/lib/services/dashboardService";
+import {
+  TargetSummary,
+  STATUS_LABEL,
+  STATUS_COLOR,
+  healthOf,
+} from "@/lib/services/quotaService";
+import FillBar from "@/components/quota/FillBar";
 import PriceForecastPanel from "@/components/prices/PriceForecastPanel";
 
 const StatCard = ({
@@ -94,30 +98,75 @@ const StatCard = ({
   </Box>
 );
 
+/** One card per target (crop + harvest month) — numbers are never shared across months. */
+const TargetQuotaCard = ({ t }: { t: TargetSummary }) => {
+  const health = healthOf(t.fill_ratio);
+  return (
+    <Box
+      p="3.5"
+      borderRadius="lg"
+      border="1px solid"
+      borderColor="gray.100"
+      bg="gray.50"
+    >
+      <Flex justify="space-between" align="center" mb="1" gap="2" wrap="wrap">
+        <HStack gap="2">
+          <Text fontSize="sm" fontWeight="bold" color="gray.800">
+            {t.crop_name}
+          </Text>
+          <Badge variant="outline" colorPalette="gray" size="sm">
+            Harvest {t.harvest_label}
+          </Badge>
+        </HStack>
+        <Badge colorPalette={health.color} variant="subtle" size="sm">
+          {health.label}
+        </Badge>
+      </Flex>
+
+      <Text fontSize="2xs" color="gray.500" mb="2">
+        Register: {t.registration_label ?? "—"} ·{" "}
+        <Text as="span" color={`${STATUS_COLOR[t.status]}.600`} fontWeight="bold">
+          {STATUS_LABEL[t.status]}
+        </Text>
+      </Text>
+
+      <FillBar ratio={t.fill_ratio} h="6px" />
+
+      <Flex justify="space-between" fontSize="2xs" color="gray.600" mt="2">
+        <Text>
+          Registered: <b>{t.filled_mt} MT</b>
+          {t.filled_ha != null ? ` (${t.filled_ha} ha)` : ""}
+        </Text>
+        <Text>
+          Limit: <b>{t.target_limit_mt} MT</b>
+          {t.allowed_extent_ha != null ? ` (${t.allowed_extent_ha} ha)` : ""} ·{" "}
+          {Math.round(t.fill_ratio * 100)}%
+        </Text>
+      </Flex>
+    </Box>
+  );
+};
+
 function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [kpis, setKpis] = useState<DashboardKPIs>({
     totalFarmers: 0,
-    totalAllocatedHa: 0,
+    registeredSupplyMt: 0,
+    harvestMonthsCount: 0,
     activeCropsCount: 0,
     pendingComplaintsCount: 0,
   });
-  const [activeWindows, setActiveWindows] = useState<ActiveCropWindow[]>([]);
+  const [targets, setTargets] = useState<TargetSummary[]>([]);
   const [trajectory, setTrajectory] = useState<TrajectoryPoint[]>([]);
 
   useEffect(() => {
     async function loadDashboardData() {
       try {
         setLoading(true);
-        const [kpiData, windowsData, trajectoryData] = await Promise.all([
-          getDashboardKPIs(),
-          getActiveCropWindows(),
-          getSupplyTrajectory(),
-        ]);
-
-        setKpis(kpiData);
-        setActiveWindows(windowsData);
-        setTrajectory(trajectoryData);
+        const data = await getDashboardData();
+        setKpis(data.kpis);
+        setTargets(data.targets);
+        setTrajectory(data.trajectory);
       } catch (err) {
         console.error("Failed to load dashboard data:", err);
       } finally {
@@ -206,7 +255,7 @@ function AdminDashboard() {
             </VStack>
 
             <Link
-              href="/ai-targets"
+              href="/admin/ai-targets"
               style={{ width: "100%", maxWidth: "260px" }}
             >
               <Button
@@ -243,9 +292,9 @@ function AdminDashboard() {
               mb="8"
             >
               <StatCard
-                label="Total Regulated Land"
-                value={`${kpis.totalAllocatedHa.toLocaleString()} Ha`}
-                subtext="Summed from active farmer land sizes"
+                label="Registered Supply"
+                value={`${kpis.registeredSupplyMt.toLocaleString()} MT`}
+                subtext={`Across ${kpis.harvestMonthsCount} harvest month${kpis.harvestMonthsCount === 1 ? "" : "s"} taking registrations`}
                 icon={Scale}
                 iconBg="blue.50"
                 iconColor="#2563EB"
@@ -261,7 +310,7 @@ function AdminDashboard() {
               <StatCard
                 label="Regulated Crops"
                 value={`${kpis.activeCropsCount} Varieties`}
-                subtext="Configured in national targets"
+                subtext={`${targets.length} active harvest-month target${targets.length === 1 ? "" : "s"}`}
                 icon={Sprout}
                 iconBg="emerald.50"
                 iconColor="#059669"
@@ -291,10 +340,11 @@ function AdminDashboard() {
                 <Flex justify="space-between" align="center" mb="6">
                   <VStack align="start" gap="0">
                     <Heading size="sm" color="gray.800" fontWeight="bold">
-                      National Supply Trajectory (Metric Tons)
+                      National Supply by Harvest Month (Metric Tons)
                     </Heading>
                     <Text fontSize="xs" color="gray.500">
-                      Actual supply vs AI target limits over time
+                      Registered supply vs AI limit — one pair of bars per
+                      target
                     </Text>
                   </VStack>
                   <HStack gap="2">
@@ -306,99 +356,68 @@ function AdminDashboard() {
                 </Flex>
 
                 <Box h="340px" w="full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart
-                      data={trajectory}
-                      margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
-                    >
-                      <defs>
-                        <linearGradient
-                          id="colorRegistered"
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="5%"
-                            stopColor="#2563EB"
-                            stopOpacity={0.25}
-                          />
-                          <stop
-                            offset="95%"
-                            stopColor="#2563EB"
-                            stopOpacity={0.0}
-                          />
-                        </linearGradient>
-                        <linearGradient
-                          id="colorTarget"
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="5%"
-                            stopColor="#10B981"
-                            stopOpacity={0.15}
-                          />
-                          <stop
-                            offset="95%"
-                            stopColor="#10B981"
-                            stopOpacity={0.0}
-                          />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid
-                        vertical={false}
-                        strokeDasharray="3 3"
-                        stroke="#F1F5F9"
-                      />
-                      <XAxis
-                        dataKey="month"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: "#64748B", fontSize: 12 }}
-                        dy={8}
-                      />
-                      <YAxis
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: "#64748B", fontSize: 12 }}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          borderRadius: "12px",
-                          border: "none",
-                          boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)",
-                          fontSize: "12px",
-                        }}
-                      />
-                      <Legend
-                        verticalAlign="top"
-                        align="right"
-                        height={36}
-                        iconType="circle"
-                      />
-                      <Area
-                        name="AI Target Ceiling (MT)"
-                        type="monotone"
-                        dataKey="targetMT"
-                        stroke="#10B981"
-                        strokeWidth={2}
-                        strokeDasharray="4 4"
-                        fill="url(#colorTarget)"
-                      />
-                      <Area
-                        name="Registered Supply (MT)"
-                        type="monotone"
-                        dataKey="registeredMT"
-                        stroke="#2563EB"
-                        strokeWidth={2.5}
-                        fill="url(#colorRegistered)"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                  {trajectory.length === 0 ? (
+                    <Flex h="full" align="center" justify="center">
+                      <Text fontSize="sm" color="gray.400">
+                        No active targets to chart yet.
+                      </Text>
+                    </Flex>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={trajectory}
+                        margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                        barGap={2}
+                        barCategoryGap="25%"
+                      >
+                        <CartesianGrid
+                          vertical={false}
+                          strokeDasharray="3 3"
+                          stroke="#F1F5F9"
+                        />
+                        <XAxis
+                          dataKey="label"
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fill: "#64748B", fontSize: 11 }}
+                          dy={8}
+                          interval={0}
+                        />
+                        <YAxis
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fill: "#64748B", fontSize: 12 }}
+                        />
+                        <Tooltip
+                          cursor={{ fill: "#F8FAFC" }}
+                          contentStyle={{
+                            borderRadius: "12px",
+                            border: "none",
+                            boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)",
+                            fontSize: "12px",
+                          }}
+                        />
+                        <Legend
+                          verticalAlign="top"
+                          align="right"
+                          height={36}
+                          iconType="circle"
+                        />
+                        <Bar
+                          name="AI Limit (MT)"
+                          dataKey="targetMT"
+                          fill="#A7F3D0"
+                          radius={[6, 6, 0, 0]}
+                        />
+                        <Bar
+                          name="Registered (MT)"
+                          dataKey="registeredMT"
+                          fill="#2563EB"
+                          radius={[6, 6, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </Box>
               </Box>
 
@@ -417,14 +436,14 @@ function AdminDashboard() {
                       Active Target Quotas
                     </Heading>
                     <Text fontSize="xs" color="gray.500">
-                      Live capacity from national_targets
+                      One card per crop and harvest month
                     </Text>
                   </VStack>
                   <Layers size={18} color="#64748B" />
                 </Flex>
 
                 <VStack gap="4" align="stretch">
-                  {activeWindows.length === 0 ? (
+                  {targets.length === 0 ? (
                     <Text
                       fontSize="xs"
                       color="gray.400"
@@ -434,116 +453,40 @@ function AdminDashboard() {
                       No published national targets yet.
                     </Text>
                   ) : (
-                    activeWindows.map((item, index) => (
-                      <Box
-                        key={index}
-                        p="3.5"
-                        borderRadius="lg"
-                        border="1px solid"
-                        borderColor="gray.100"
-                        bg="gray.50"
-                      >
-                        <Flex justify="space-between" align="center" mb="1.5">
-                          <HStack gap="2">
-                            <Text
-                              fontSize="sm"
-                              fontWeight="bold"
-                              color="gray.800"
-                            >
-                              {item.crop}
-                            </Text>
-                            <Text
-                              fontSize="2xs"
-                              color="gray.500"
-                              bg="white"
-                              px="2"
-                              py="0.5"
-                              borderRadius="md"
-                              border="1px solid"
-                              borderColor="gray.200"
-                            >
-                              Harvest: {item.targetHarvest}
-                            </Text>
-                          </HStack>
-                          <Text
-                            fontSize="2xs"
-                            fontWeight="bold"
-                            px="2"
-                            py="0.5"
-                            borderRadius="full"
-                            bg={
-                              item.statusColor === "green"
-                                ? "green.100"
-                                : item.statusColor === "orange"
-                                  ? "orange.100"
-                                  : "red.100"
-                            }
-                            color={
-                              item.statusColor === "green"
-                                ? "green.800"
-                                : item.statusColor === "orange"
-                                  ? "orange.800"
-                                  : "red.800"
-                            }
-                          >
-                            {item.status}
-                          </Text>
-                        </Flex>
-
-                        <Box
-                          w="full"
-                          bg="gray.200"
-                          h="6px"
-                          borderRadius="full"
-                          overflow="hidden"
-                          my="2"
-                        >
-                          <Box
-                            h="full"
-                            bg={
-                              item.percentage >= 95
-                                ? "red.500"
-                                : item.percentage >= 80
-                                  ? "orange.500"
-                                  : "blue.600"
-                            }
-                            w={`${item.percentage}%`}
-                            borderRadius="full"
-                          />
-                        </Box>
-
-                        <Flex
-                          justify="space-between"
-                          fontSize="2xs"
-                          color="gray.600"
-                        >
-                          <Text>
-                            Registered: <b>{item.registeredHa} Ha</b>
-                          </Text>
-                          <Text>
-                            Allowed: <b>{item.allowedHa} Ha</b> (
-                            {item.percentage}%)
-                          </Text>
-                        </Flex>
-                      </Box>
+                    targets.map((t) => (
+                      <TargetQuotaCard key={t.target_id} t={t} />
                     ))
                   )}
                 </VStack>
 
                 <Separator my="4" />
 
-                <Link href="/ai-targets" style={{ width: "100%" }}>
-                  <Button
-                    w="full"
-                    variant="subtle"
-                    colorPalette="blue"
-                    size="sm"
-                    gap="2"
-                    fontWeight="bold"
-                  >
-                    Configure New Target Window <ArrowRight size={14} />
-                  </Button>
-                </Link>
+                <HStack>
+                  <Link href="/admin/ai-targets" style={{ width: "100%" }}>
+                    <Button
+                      w="full"
+                      variant="subtle"
+                      colorPalette="blue"
+                      size="sm"
+                      gap="2"
+                      fontWeight="bold"
+                    >
+                      New Target <ArrowRight size={14} />
+                    </Button>
+                  </Link>
+                  <Link href="/admin/targets" style={{ width: "100%" }}>
+                    <Button
+                      w="full"
+                      variant="outline"
+                      colorPalette="blue"
+                      size="sm"
+                      gap="2"
+                      fontWeight="bold"
+                    >
+                      Windows
+                    </Button>
+                  </Link>
+                </HStack>
               </Box>
             </SimpleGrid>
 

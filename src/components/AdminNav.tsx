@@ -161,7 +161,21 @@ export default function AdminNav({
       {/* ================================
           NAVIGATION
       ================================= */}
-      <VStack gap={4} align="start" w="full" flex={1} overflowY="auto" minH={0}>
+      <VStack
+        gap={4}
+        align="start"
+        w="full"
+        flex={1}
+        overflowY="auto"
+        minH={0}
+        scrollbarWidth="none" /* Firefox */
+        css={{
+          "&::-webkit-scrollbar": {
+            display: "none" /* Chrome, Safari, Edge */,
+          },
+          msOverflowStyle: "none" /* IE and Edge */,
+        }}
+      >
         {adminPages.map((page) => {
           const isActive = pathname === page.link;
 

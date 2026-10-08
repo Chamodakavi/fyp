@@ -1,0 +1,339 @@
+
+C:\Users\Ckavi\Desktop\all repo\fyp\next.config.mjs
+  1:1  warning  Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\app\(admin)\admin\dashboard\page.tsx
+  2:8  warning  'Dashboard' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\app\(admin)\admin\orders\page.tsx
+  112:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\app\(admin)\admin\orders\page.tsx:112:7
+  110 |   useEffect(() => {
+  111 |     if (isOpen && order) {
+> 112 |       setNoteText("");
+      |       ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  113 |     }
+  114 |   }, [isOpen, order?.id]);
+  115 |  react-hooks/set-state-in-effect
+  114:6   warning  React Hook useEffect has a missing dependency: 'order'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                react-hooks/exhaustive-deps
+  455:21  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+  486:21  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+  508:21  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\app\(admin)\layout.tsx
+  3:10  warning  'Inter' is defined but never used        @typescript-eslint/no-unused-vars
+  5:17  warning  'useContext' is defined but never used   @typescript-eslint/no-unused-vars
+  7:10  warning  'usePathname' is defined but never used  @typescript-eslint/no-unused-vars
+  9:8   warning  'SideNav' is defined but never used      @typescript-eslint/no-unused-vars
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\app\(home)\cart\page.tsx
+   40:46  error    Unexpected any. Specify a different type                                                                          @typescript-eslint/no-explicit-any
+   42:40  error    Unexpected any. Specify a different type                                                                          @typescript-eslint/no-explicit-any
+   44:54  error    Unexpected any. Specify a different type                                                                          @typescript-eslint/no-explicit-any
+   55:25  error    Unexpected any. Specify a different type                                                                          @typescript-eslint/no-explicit-any
+  112:21  error    Unexpected any. Specify a different type                                                                          @typescript-eslint/no-explicit-any
+  121:6   warning  React Hook useEffect has a missing dependency: 'fetchMyOrders'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  216:21  error    Unexpected any. Specify a different type                                                                          @typescript-eslint/no-explicit-any
+  264:21  error    Unexpected any. Specify a different type                                                                          @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\app\(home)\community\page.tsx
+  58:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  74:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  85:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\app\(home)\layout.tsx
+  3:10  warning  'Inter' is defined but never used        @typescript-eslint/no-unused-vars
+  5:17  warning  'useContext' is defined but never used   @typescript-eslint/no-unused-vars
+  7:10  warning  'usePathname' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\app\(home)\marketplace\[id]\page.tsx
+  154:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\app\(home)\marketplace\page.tsx
+  26:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\app\(home)\registration\page.tsx
+  2:10  warning  'Box' is defined but never used   @typescript-eslint/no-unused-vars
+  2:15  warning  'Text' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\app\(home)\settings\page.tsx
+   78:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  106:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  150:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\app\api\advisory\route.ts
+  26:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\app\page.tsx
+   9:3  warning  'TestimonialsSection' is defined but never used  @typescript-eslint/no-unused-vars
+  12:8  warning  'Login' is defined but never used                @typescript-eslint/no-unused-vars
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\AdminNav.tsx
+  257:10  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\AdminNav.tsx:257:10
+  255 |         overflowY="hidden"
+  256 |       >
+> 257 |         <SidebarContent />
+      |          ^^^^^^^^^^^^^^ This component is created during render
+  258 |       </Box>
+  259 |     );
+  260 |   }
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\AdminNav.tsx:127:26
+  125 |   };
+  126 |
+> 127 |   const SidebarContent = () => (
+      |                          ^^^^^^^
+> 128 |     <Flex direction="column" h="full" w="full" minW={0} overflowX="hidden">
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 129 |       {/* ================================
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 236 |     </Flex>
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 237 |   );
+      | ^^^^ The component is created during render here
+  238 |
+  239 |   {
+  240 |     /* ================================                                                                                                                                                react-hooks/static-components
+  284:16  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\AdminNav.tsx:284:16
+  282 |           <Drawer.Content bg="white" maxW="300px" w="85vw" h="100vh">
+  283 |             <Drawer.Body p={6} h="full" overflow="hidden">
+> 284 |               <SidebarContent />
+      |                ^^^^^^^^^^^^^^ This component is created during render
+  285 |             </Drawer.Body>
+  286 |
+  287 |             {/* Close button */}
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\AdminNav.tsx:127:26
+  125 |   };
+  126 |
+> 127 |   const SidebarContent = () => (
+      |                          ^^^^^^^
+> 128 |     <Flex direction="column" h="full" w="full" minW={0} overflowX="hidden">
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 129 |       {/* ================================
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 236 |     </Flex>
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 237 |   );
+      | ^^^^ The component is created during render here
+  238 |
+  239 |   {
+  240 |     /* ================================  react-hooks/static-components
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\Admin\AITargets.tsx
+  62:10  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  86:63  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\SideNav.tsx
+  129:10  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\SideNav.tsx:129:10
+  127 |     return (
+  128 |       <Box h="100vh" w="full" bg={THEME.bg} p={5} position="sticky" top={0}>
+> 129 |         <SidebarContent />
+      |          ^^^^^^^^^^^^^^ This component is created during render
+  130 |       </Box>
+  131 |     );
+  132 |   }
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\SideNav.tsx:66:26
+   64 |   const pathname = usePathname();
+   65 |
+>  66 |   const SidebarContent = () => (
+      |                          ^^^^^^^
+>  67 |     <Flex direction="column" h="full" w="full">
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  68 |       <Box>
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 123 |     </Flex>
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 124 |   );
+      | ^^^^ The component is created during render here
+  125 |
+  126 |   if (!isMobile) {
+  127 |     return (                                                                                 react-hooks/static-components
+  141:16  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\SideNav.tsx:141:16
+  139 |           <Drawer.Content bg={THEME.bg} color="white">
+  140 |             <Drawer.Body p={6}>
+> 141 |               <SidebarContent />
+      |                ^^^^^^^^^^^^^^ This component is created during render
+  142 |             </Drawer.Body>
+  143 |             <Drawer.CloseTrigger
+  144 |               position="absolute"
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\SideNav.tsx:66:26
+   64 |   const pathname = usePathname();
+   65 |
+>  66 |   const SidebarContent = () => (
+      |                          ^^^^^^^
+>  67 |     <Flex direction="column" h="full" w="full">
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  68 |       <Box>
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 123 |     </Flex>
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 124 |   );
+      | ^^^^ The component is created during render here
+  125 |
+  126 |   if (!isMobile) {
+  127 |     return (  react-hooks/static-components
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\community\AdminCommunity.tsx
+   78:21  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  173:47  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                          react/no-unescaped-entities
+  173:61  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                          react/no-unescaped-entities
+  214:29  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\community\PostCard.tsx
+  110:55  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\community\PostsDialog.tsx
+  3:22  warning  'Button' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\contact\AdminComplaintForm.tsx
+   73:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\contact\AdminComplaintForm.tsx:73:7
+  71 |   useEffect(() => {
+  72 |     if (isOpen) {
+> 73 |       setReplyText("");
+     |       ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  74 |     }
+  75 |   }, [isOpen, complaint?.id]);
+  76 |  react-hooks/set-state-in-effect
+  319:21  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @typescript-eslint/no-explicit-any
+  356:21  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @typescript-eslint/no-explicit-any
+  379:21  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\contact\ComplaintForm.tsx
+   65:21  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+   80:6   warning  React Hook useEffect has a missing dependency: 'fetchMyComplaints'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  116:21  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\home\AdminDashboard.tsx
+  60:4  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\home\Dashboard.tsx
+   63:62  error    Unexpected any. Specify a different type                                                                     @typescript-eslint/no-explicit-any
+  276:6   warning  React Hook useEffect has a missing dependency: 'supabase'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  619:49  error    Unexpected any. Specify a different type                                                                     @typescript-eslint/no-explicit-any
+  756:42  error    Unexpected any. Specify a different type                                                                     @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\land\LandingPageSections.tsx
+  348:17  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  348:37  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\login\Login.tsx
+  115:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\login\SignUp.tsx
+  75:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\marketplace\AdminMarketplaceCard.tsx
+   42:58  error    Unexpected any. Specify a different type                                                                     @typescript-eslint/no-explicit-any
+   45:58  error    Unexpected any. Specify a different type                                                                     @typescript-eslint/no-explicit-any
+   93:36  error    Unexpected any. Specify a different type                                                                     @typescript-eslint/no-explicit-any
+  167:21  error    Unexpected any. Specify a different type                                                                     @typescript-eslint/no-explicit-any
+  231:21  error    Unexpected any. Specify a different type                                                                     @typescript-eslint/no-explicit-any
+  318:21  warning  Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images  jsx-a11y/alt-text
+  429:29  warning  Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images  jsx-a11y/alt-text
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\marketplace\MarketplaceCard.tsx
+  15:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\news\AdminNewsManagement.tsx
+   29:8   warning  'LuX' is defined but never used                                                                              @typescript-eslint/no-unused-vars
+   46:52  error    Unexpected any. Specify a different type                                                                     @typescript-eslint/no-explicit-any
+   87:33  error    Unexpected any. Specify a different type                                                                     @typescript-eslint/no-explicit-any
+  135:19  error    Unexpected any. Specify a different type                                                                     @typescript-eslint/no-explicit-any
+  182:19  error    Unexpected any. Specify a different type                                                                     @typescript-eslint/no-explicit-any
+  259:21  warning  Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images  jsx-a11y/alt-text
+  371:29  warning  Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images  jsx-a11y/alt-text
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\news\NewsCard.tsx
+   7:3   warning  'Icon' is defined but never used          @typescript-eslint/no-unused-vars
+  13:37  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\orderCom\CartItem.tsx
+  5:9  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\orderCom\OrderDetailsModal.tsx
+    9:3   warning  'Separator' is defined but never used     @typescript-eslint/no-unused-vars
+   10:3   warning  'Spinner' is defined but never used       @typescript-eslint/no-unused-vars
+   25:10  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  126:51  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\orderCom\OrderRow.tsx
+  6:10  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\orderCom\OrdersSection.tsx
+  6:11  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  8:26  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\orderCom\orderUtils.tsx
+  37:39  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\settings\AdminSettings.tsx
+  128:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\ui\color-mode.tsx
+  10:18  error  An interface declaring no members is equivalent to its supertype  @typescript-eslint/no-empty-object-type
+  49:11  error  An interface declaring no members is equivalent to its supertype  @typescript-eslint/no-empty-object-type
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\components\ui\provider.tsx
+  5:3  warning  'defaultSystem' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\hooks\useCart.ts
+  6:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\hooks\useNews.ts
+  6:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\hooks\usePosts.ts
+  74:54  error    Unexpected any. Specify a different type                                                                       @typescript-eslint/no-explicit-any
+  93:6   warning  React Hook useEffect has a missing dependency: 'fetchPosts'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\hooks\useProducts.ts
+  65:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\hooks\useUser.ts
+   3:18  warning  'SupabaseUser' is defined but never used                                                                                               @typescript-eslint/no-unused-vars
+  64:6   warning  React Hook useEffect has missing dependencies: 'fetchProfile' and 'supabase.auth'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  97:6   warning  React Hook useEffect has a missing dependency: 'supabase'. Either include it or remove the dependency array                            react-hooks/exhaustive-deps
+
+C:\Users\Ckavi\Desktop\all repo\fyp\src\utils\supabase\server.ts
+  1:35  warning  'CookieOptions' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 102 problems (69 errors, 33 warnings)
+

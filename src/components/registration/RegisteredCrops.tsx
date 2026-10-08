@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import Link from "next/link";
 import {
   Box,
@@ -15,7 +15,8 @@ import {
   Table,
 } from "@chakra-ui/react";
 import { useRegisteredCrops } from "@/hooks/useRegisteredCrop";
-import { monthName } from "@/lib/services/quotaService";
+import { monthName, MyRegistration } from "@/lib/services/quotaService";
+import { groupBy } from "@/utils/groupBy";
 import { LuSprout, LuHistory } from "react-icons/lu";
 
 const DashboardCard = ({ children, bg = "white", ...props }: BoxProps) => (
@@ -32,9 +33,26 @@ const DashboardCard = ({ children, bg = "white", ...props }: BoxProps) => (
   </Box>
 );
 
+const UNLINKED = "unlinked";
+
+/** "2027-02" for a linked registration, so groups sort chronologically. */
+const harvestKey = (c: MyRegistration) =>
+  c.target?.year && c.target?.month
+    ? `${c.target.year}-${String(c.target.month).padStart(2, "0")}`
+    : UNLINKED;
+
 function RegisteredCrops({ refreshKey = 0 }: { refreshKey?: number }) {
   const { crops, loadingCrops, error } = useRegisteredCrops(refreshKey);
   const activeCount = crops.filter((c) => c.status !== "cancelled").length;
+
+  // One section per harvest month (R5), earliest first; unlinked rows last
+  const groups = useMemo(
+    () =>
+      Object.entries(groupBy(crops, harvestKey)).sort(([a], [b]) =>
+        a === UNLINKED ? 1 : b === UNLINKED ? -1 : a.localeCompare(b),
+      ),
+    [crops],
+  );
 
   return (
     <DashboardCard w="full" maxW="2xl" mx="auto">
@@ -77,79 +95,95 @@ function RegisteredCrops({ refreshKey = 0 }: { refreshKey?: number }) {
           <Text color="gray.500">No crops registered yet.</Text>
         </VStack>
       ) : (
-        <VStack gap={4} align="stretch">
-          {/* Table-like display for clean reading */}
-          <Box overflowX="auto">
-            <Table.Root size="sm" variant="line">
-              <Table.Header>
-                <Table.Row>
-                  <Table.ColumnHeader color="green.800">
-                    Crop Name
-                  </Table.ColumnHeader>
-                  <Table.ColumnHeader color="green.800">
-                    Harvest
-                  </Table.ColumnHeader>
-                  <Table.ColumnHeader color="green.800" textAlign="right">
-                    Amount (MT)
-                  </Table.ColumnHeader>
-                  <Table.ColumnHeader color="green.800" textAlign="right">
-                    Date
-                  </Table.ColumnHeader>
-                  <Table.ColumnHeader />
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {crops.map((crop) => {
-                  const cancelled = crop.status === "cancelled";
-                  return (
-                    <Table.Row
-                      key={crop.id}
-                      _hover={{ bg: "green.50" }}
-                      opacity={cancelled ? 0.5 : 1}
-                    >
-                      <Table.Cell fontWeight="bold">
-                        {crop.crop_name}
-                        {cancelled && (
-                          <Badge ml={2} colorPalette="gray" size="sm">
-                            Cancelled
-                          </Badge>
-                        )}
-                      </Table.Cell>
-                      <Table.Cell fontSize="xs">
-                        {monthName(crop.target?.year, crop.target?.month)}
-                      </Table.Cell>
-                      <Table.Cell textAlign="right">
-                        {crop.amount_mt}
-                      </Table.Cell>
-                      <Table.Cell
-                        textAlign="right"
-                        fontSize="xs"
-                        color="gray.500"
-                      >
-                        {new Date(crop.registered_at).toLocaleDateString()}
-                      </Table.Cell>
-                      <Table.Cell textAlign="right">
-                        {!cancelled && (
-                          <Button
-                            asChild
-                            size="xs"
-                            variant="outline"
-                            colorPalette="blue"
+        <VStack gap={5} align="stretch">
+          {groups.map(([key, rows]) => {
+            const first = rows[0];
+            const heading =
+              key === UNLINKED
+                ? "Not linked to a harvest month"
+                : `Harvest ${monthName(first.target?.year, first.target?.month)}`;
+            const sectionTotal = rows
+              .filter((r) => r.status !== "cancelled")
+              .reduce((s, r) => s + Number(r.amount_mt || 0), 0);
+
+            return (
+              <Box key={key}>
+                <Flex justify="space-between" align="baseline" mb={2}>
+                  <Text fontWeight="bold" color="green.800">
+                    {heading}
+                  </Text>
+                  <Text fontSize="xs" color="gray.500">
+                    {sectionTotal} MT registered
+                  </Text>
+                </Flex>
+                <Box overflowX="auto">
+                  <Table.Root size="sm" variant="line">
+                    <Table.Header>
+                      <Table.Row>
+                        <Table.ColumnHeader color="green.800">
+                          Crop
+                        </Table.ColumnHeader>
+                        <Table.ColumnHeader color="green.800" textAlign="right">
+                          Amount (MT)
+                        </Table.ColumnHeader>
+                        <Table.ColumnHeader color="green.800" textAlign="right">
+                          Registered
+                        </Table.ColumnHeader>
+                        <Table.ColumnHeader />
+                      </Table.Row>
+                    </Table.Header>
+                    <Table.Body>
+                      {rows.map((crop) => {
+                        const cancelled = crop.status === "cancelled";
+                        return (
+                          <Table.Row
+                            key={crop.id}
+                            _hover={{ bg: "green.50" }}
+                            opacity={cancelled ? 0.5 : 1}
                           >
-                            <Link
-                              href={`/quota-support?registration=${crop.id}`}
+                            <Table.Cell fontWeight="bold">
+                              {crop.crop_name}
+                              {cancelled && (
+                                <Badge ml={2} colorPalette="gray" size="sm">
+                                  Cancelled
+                                </Badge>
+                              )}
+                            </Table.Cell>
+                            <Table.Cell textAlign="right">
+                              {crop.amount_mt}
+                            </Table.Cell>
+                            <Table.Cell
+                              textAlign="right"
+                              fontSize="xs"
+                              color="gray.500"
                             >
-                              Request change
-                            </Link>
-                          </Button>
-                        )}
-                      </Table.Cell>
-                    </Table.Row>
-                  );
-                })}
-              </Table.Body>
-            </Table.Root>
-          </Box>
+                              {new Date(crop.registered_at).toLocaleDateString()}
+                            </Table.Cell>
+                            <Table.Cell textAlign="right">
+                              {!cancelled && (
+                                <Button
+                                  asChild
+                                  size="xs"
+                                  variant="outline"
+                                  colorPalette="blue"
+                                >
+                                  <Link
+                                    href={`/quota-support?registration=${crop.id}`}
+                                  >
+                                    Request change
+                                  </Link>
+                                </Button>
+                              )}
+                            </Table.Cell>
+                          </Table.Row>
+                        );
+                      })}
+                    </Table.Body>
+                  </Table.Root>
+                </Box>
+              </Box>
+            );
+          })}
 
           <Box
             p={3}

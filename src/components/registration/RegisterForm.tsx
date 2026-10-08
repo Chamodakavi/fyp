@@ -26,14 +26,16 @@ import {
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/createClient";
 import {
-  fetchBucketStatus,
+  fetchTargetSummary,
   registerHarvest,
-  BucketStatus,
+  TargetSummary,
   Alternative,
   cropLabel,
   monthName,
+  monthIndex,
   formatDateTime,
 } from "@/lib/services/quotaService";
+import { groupBy } from "@/utils/groupBy";
 import FillBar from "@/components/quota/FillBar";
 
 type Feedback = {
@@ -53,9 +55,13 @@ interface Props {
   onRegistered?: () => void;
 }
 
+const byHarvest = (a: TargetSummary, b: TargetSummary) =>
+  monthIndex(a.harvest_year, a.harvest_month) -
+  monthIndex(b.harvest_year, b.harvest_month);
+
 const RegisterForm = ({ onRegistered }: Props) => {
   const [amount, setAmount] = useState("");
-  const [targets, setTargets] = useState<BucketStatus[]>([]);
+  const [targets, setTargets] = useState<TargetSummary[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [loadingTargets, setLoadingTargets] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -69,13 +75,14 @@ const RegisterForm = ({ onRegistered }: Props) => {
   // and don't replace the farmer's current message with a connection error.
   const load = useCallback(async (silent = false) => {
     try {
-      const rows = await fetchBucketStatus(false);
+      const rows = await fetchTargetSummary(false);
       setTargets(rows);
       setSelectedId((prev) => {
         const open = rows.filter((r) => r.is_open);
         if (prev && open.some((r) => r.target_id === prev)) return prev;
         return (
-          open.find((r) => r.remaining_mt > 0)?.target_id ??
+          open.find((r) => r.remaining_mt > 0 && !r.my_registration_id)
+            ?.target_id ??
           open[0]?.target_id ??
           null
         );
@@ -141,13 +148,18 @@ const RegisterForm = ({ onRegistered }: Props) => {
   }, [load]);
 
   const openTargets = useMemo(
-    () => targets.filter((t) => t.is_open),
+    () => targets.filter((t) => t.is_open).sort(byHarvest),
     [targets],
+  );
+  // One <optgroup> per crop, one option per harvest-month target (R5)
+  const openGroups = useMemo(
+    () => Object.entries(groupBy(openTargets, (t) => t.crop_name)),
+    [openTargets],
   );
   const upcoming = useMemo(
     () =>
       targets
-        .filter((t) => !t.is_open && t.next_opens_at)
+        .filter((t) => t.status === "scheduled" && t.next_opens_at)
         .sort((a, b) => (a.next_opens_at! < b.next_opens_at! ? -1 : 1)),
     [targets],
   );
@@ -186,6 +198,7 @@ const RegisterForm = ({ onRegistered }: Props) => {
     }
 
     setLoading(true);
+    const harvestLabel = selected.harvest_label;
 
     try {
       const result = await registerHarvest(selected.target_id, value);
@@ -194,7 +207,7 @@ const RegisterForm = ({ onRegistered }: Props) => {
         case "success":
           setFeedback({
             type: "success",
-            message: `✅ Registered ${result.amount_mt} MT of ${result.crop_name}. ${result.remaining_mt} MT space left.`,
+            message: `✅ Registered ${result.amount_mt} MT of ${result.crop_name} for the ${harvestLabel} harvest. ${result.remaining_mt} MT space left.`,
           });
           setAmount("");
           onRegistered?.();
@@ -202,7 +215,7 @@ const RegisterForm = ({ onRegistered }: Props) => {
         case "surplus_warning":
           setFeedback({
             type: "warning",
-            message: `⚠️ Only ${result.remaining_mt} MT left for ${result.crop_name} (${result.filled_mt} of ${result.limit_mt} MT already registered). Registering ${value} MT would cause a surplus.`,
+            message: `⚠️ Only ${result.remaining_mt} MT left for ${result.crop_name} (${harvestLabel} harvest; ${result.filled_mt} of ${result.limit_mt} MT already registered). Registering ${value} MT would cause a surplus.`,
           });
           setAlternatives(result.alternatives ?? []);
           break;
@@ -210,15 +223,15 @@ const RegisterForm = ({ onRegistered }: Props) => {
           setFeedback({
             type: "error",
             message: result.next_opens_at
-              ? `Registration for ${result.crop_name} is closed. It opens again on ${formatDateTime(result.next_opens_at)}.`
-              : `Registration for ${result.crop_name} is closed.`,
+              ? `Registration for ${result.crop_name} (${harvestLabel} harvest) is closed. It opens again on ${formatDateTime(result.next_opens_at)}.`
+              : `Registration for ${result.crop_name} (${harvestLabel} harvest) is closed.`,
           });
           break;
         case "already_registered":
           setExistingRegId(result.registration_id);
           setFeedback({
             type: "warning",
-            message: `You have already registered for ${result.crop_name} this season. To change the amount, send a quota change request.`,
+            message: `You have already registered ${result.crop_name} for the ${harvestLabel} harvest. To change the amount, send a quota change request.`,
           });
           break;
         case "invalid_amount":
@@ -277,8 +290,9 @@ const RegisterForm = ({ onRegistered }: Props) => {
           borderColor="green.300"
         >
           <Text>
-            Register your crops to secure price. Registration is open only
-            during each crop&apos;s registration period.
+            Register your crops to secure price. Each harvest month has its own
+            quota and registration period — you can register once per harvest
+            month.
           </Text>
         </Box>
 
@@ -315,8 +329,8 @@ const RegisterForm = ({ onRegistered }: Props) => {
                 </Text>
                 {upcoming.slice(0, 5).map((t) => (
                   <Text key={t.target_id} fontSize="sm">
-                    • <b>{cropLabel(t.crop_name)}</b> (
-                    {monthName(t.year, t.month)} harvest) — opens{" "}
+                    • <b>{cropLabel(t.crop_name)}</b> · harvest{" "}
+                    {t.harvest_label} · registration opens{" "}
                     {formatDateTime(t.next_opens_at)}
                   </Text>
                 ))}
@@ -332,7 +346,7 @@ const RegisterForm = ({ onRegistered }: Props) => {
           <>
             <Box>
               <Text fontWeight="bold" mb={2}>
-                Select Crop
+                Select Crop &amp; Harvest Month
               </Text>
               <NativeSelect.Root size="lg" variant="subtle">
                 <NativeSelect.Field
@@ -343,17 +357,22 @@ const RegisterForm = ({ onRegistered }: Props) => {
                   }}
                   bg="gray.50"
                 >
-                  {openTargets.map((t) => (
-                    <option
-                      key={t.target_id}
-                      value={t.target_id}
-                      disabled={t.remaining_mt <= 0}
-                    >
-                      {t.crop_name} · {monthName(t.year, t.month)} harvest ·{" "}
-                      {t.remaining_mt <= 0
-                        ? "FULL"
-                        : `${t.remaining_mt} MT left`}
-                    </option>
+                  {openGroups.map(([crop, rows]) => (
+                    <optgroup key={crop} label={cropLabel(crop)}>
+                      {rows.map((t) => (
+                        <option
+                          key={t.target_id}
+                          value={t.target_id}
+                          disabled={t.remaining_mt <= 0 || !!t.my_registration_id}
+                        >
+                          Harvest {t.harvest_label} ·{" "}
+                          {t.remaining_mt <= 0
+                            ? "FULL"
+                            : `${t.remaining_mt} MT left`}
+                          {t.my_registration_id ? " · already registered" : ""}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </NativeSelect.Field>
                 <NativeSelect.Indicator />
@@ -369,7 +388,10 @@ const RegisterForm = ({ onRegistered }: Props) => {
                 borderColor="gray.200"
               >
                 <Flex justify="space-between" mb={2} wrap="wrap" gap={2}>
-                  <Text fontWeight="bold">{cropLabel(selected.crop_name)}</Text>
+                  <Text fontWeight="bold">
+                    {cropLabel(selected.crop_name)} · harvest{" "}
+                    {selected.harvest_label}
+                  </Text>
                   <HStack color="orange.600" fontSize="sm">
                     <CalendarClock size={16} />
                     <Text>
@@ -391,7 +413,7 @@ const RegisterForm = ({ onRegistered }: Props) => {
                       Plant in
                     </Text>
                     <Text fontWeight="semibold">
-                      {selected.planting_date ?? "—"}
+                      {selected.registration_label ?? "—"}
                     </Text>
                   </Box>
                   <Box>
@@ -399,7 +421,7 @@ const RegisterForm = ({ onRegistered }: Props) => {
                       Harvest
                     </Text>
                     <Text fontWeight="semibold">
-                      {monthName(selected.year, selected.month)}
+                      {monthName(selected.harvest_year, selected.harvest_month)}
                     </Text>
                   </Box>
                   <Box>
@@ -427,8 +449,8 @@ const RegisterForm = ({ onRegistered }: Props) => {
                 {alreadyMine && (
                   <Box mt={3} p={3} bg="blue.50" borderRadius="md">
                     <Text fontSize="sm" color="blue.800">
-                      You registered <b>{selected.my_amount_mt} MT</b> for this
-                      crop.{" "}
+                      You registered <b>{selected.my_amount_mt} MT</b> for the{" "}
+                      {selected.harvest_label} harvest.{" "}
                       <Link
                         href={`/quota-support?registration=${alreadyMine}`}
                         style={{ textDecoration: "underline" }}
@@ -537,7 +559,7 @@ const RegisterForm = ({ onRegistered }: Props) => {
           </Flex>
         )}
 
-        {/* Surplus: other open crops that still have room for this amount */}
+        {/* Surplus: other open targets that still have room for this amount */}
         {alternatives.length > 0 && (
           <Box
             p={4}
@@ -546,7 +568,7 @@ const RegisterForm = ({ onRegistered }: Props) => {
             borderRadius="xl"
           >
             <Text fontWeight="bold" mb={2}>
-              Consider these crops instead (open now, with enough space):
+              Consider these instead (open now, with enough space):
             </Text>
             <VStack align="stretch" gap={2}>
               {alternatives.map((alt) => (
@@ -562,8 +584,8 @@ const RegisterForm = ({ onRegistered }: Props) => {
                 >
                   <Box>
                     <Text fontWeight="semibold">
-                      {cropLabel(alt.crop_name)} ·{" "}
-                      {monthName(alt.year, alt.month)} harvest
+                      {cropLabel(alt.crop_name)} · harvest{" "}
+                      {monthName(alt.year, alt.month)}
                     </Text>
                     <Text fontSize="xs" color="gray.600">
                       {alt.remaining_mt} MT left

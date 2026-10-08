@@ -59,6 +59,29 @@ export const FLOOR_RATIO = 0.85;
 
 export const cropLabel = (c: string) => CROP_LABELS[c?.toUpperCase()] ?? c;
 
+/**
+ * Growth cycle in months, mirrored from the model's CROP_LIFECYCLE (verified
+ * against the live engine on 2026-10-08). The database table `crop_lifecycle`
+ * is the source of truth — see fetchCropCycles(); this is only the fallback
+ * used before that table is reachable.
+ */
+export const CROP_CYCLE_FALLBACK: Record<string, number> = {
+  "ASH PLANTAINS": 10,
+  BEANS: 3,
+  BEETROOT: 3,
+  "BITTER GOURD": 3,
+  BRINJALS: 4,
+  CABBAGE: 3,
+  CAPSICUM: 4,
+  CARROT: 4,
+  CUCUMBER: 2,
+  DRUMSTIC: 12,
+  LEEKS: 5,
+  LUFFA: 3,
+  RADDISH: 2,
+  TOMATOES: 4,
+};
+
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
 /* ------------------------------------------------------------------ */
@@ -76,10 +99,46 @@ export interface AdvisoryData {
 export interface AdvisoryParams {
   crop: string;
   year: number;
-  /** Planting month — the API returns the harvest month after the growth lag. */
+  /**
+   * REGISTRATION (planting) month. Verified against the live engine: it adds
+   * the crop's growth cycle itself and returns Target_Harvest_Date = month +
+   * cycle (e.g. CARROT 2026-10 → 2027-02). Never add the cycle on this side.
+   */
   month: number;
   rainfall: number;
   dieselPrice: number;
+}
+
+export type TargetStatus = "open" | "full" | "scheduled" | "closed" | "inactive";
+
+/** One row per target from get_target_summary — every number is per target_id. */
+export interface TargetSummary {
+  target_id: number;
+  crop_name: string;
+  harvest_year: number;
+  harvest_month: number;
+  harvest_label: string;
+  planting_year: number | null;
+  planting_month: number | null;
+  registration_label: string | null;
+  target_limit_mt: number;
+  allowed_extent_ha: number | null;
+  filled_mt: number;
+  filled_ha: number | null;
+  remaining_mt: number;
+  fill_ratio: number;
+  farmer_count: number;
+  is_active: boolean;
+  is_open: boolean;
+  status: TargetStatus;
+  current_window_id: number | null;
+  window_opens_at: string | null;
+  window_closes_at: string | null;
+  next_opens_at: string | null;
+  target_fair_price: number | null;
+  estimated_wholesale_price: number | null;
+  my_registration_id: number | null;
+  my_amount_mt: number | null;
 }
 
 export interface BucketStatus {
@@ -276,19 +335,31 @@ export const formatDateTime = (iso?: string | null) =>
 export const colomboMonthStart = (year: number, month: number) =>
   new Date(Date.UTC(year, month - 1, 1, 0, 0, 0) - 5.5 * 3600 * 1000);
 
-/**
- * Default window = the planting month; starts now if the month has already begun.
- * Returns null when the date is unreadable or the planting month is already over.
- */
-export function defaultWindowFromPlanting(
-  plantingDate: string | null | undefined,
+export const ym = (y: number, m: number) =>
+  `${y}-${String(m).padStart(2, "0")}`;
+
+/** Registration month + life cycle → harvest month (R2). */
+export function harvestFromRegistration(
+  regYear: number,
+  regMonth: number,
+  cycle: number,
 ) {
-  const ym = parseYearMonth(plantingDate);
-  if (!ym) return null;
-  const start = colomboMonthStart(ym.year, ym.month);
+  const idx = regYear * 12 + (regMonth - 1) + cycle;
+  return { year: Math.floor(idx / 12), month: (idx % 12) + 1 };
+}
+
+/** Months since year 0 — handy for "is this month in the past?" comparisons. */
+export const monthIndex = (year: number, month: number) => year * 12 + month;
+
+/**
+ * Window for a registration month (R4): max(now, 1st of month) → 1st of the
+ * next month, Sri Lanka time. Returns null when the month is already over.
+ */
+export function registrationMonthWindow(regYear: number, regMonth: number) {
+  const start = colomboMonthStart(regYear, regMonth);
   const end = colomboMonthStart(
-    ym.month === 12 ? ym.year + 1 : ym.year,
-    ym.month === 12 ? 1 : ym.month + 1,
+    regMonth === 12 ? regYear + 1 : regYear,
+    regMonth === 12 ? 1 : regMonth + 1,
   );
   const now = new Date();
   if (end <= now) return null;
@@ -414,8 +485,17 @@ export interface ApplyTargetOptions {
   notifyFarmers?: boolean;
 }
 
+/**
+ * Publishes one target for `harvest` (R1). The harvest month is computed by
+ * the caller from the registration month + crop cycle; the API's own date
+ * strings are only used as a cross-check so a cycle mismatch between the
+ * model and `crop_lifecycle` is caught before anything is written (B1, B9).
+ * planting_date / target_harvest_date are NOT sent — the database trigger
+ * derives them (R3).
+ */
 export async function applyNationalTarget(
   crop: string,
+  harvest: { year: number; month: number },
   apiResponse: AdvisoryData,
   opts: ApplyTargetOptions,
 ): Promise<{ targetId: number; windowResult: RpcResult | null }> {
@@ -427,10 +507,14 @@ export async function applyNationalTarget(
     throw new Error("Invalid AI target yield value.");
   }
 
-  const harvest = parseYearMonth(apiResponse.Target_Harvest_Date);
-  if (!harvest) {
+  const apiHarvest = parseYearMonth(apiResponse.Target_Harvest_Date);
+  if (
+    apiHarvest &&
+    (apiHarvest.year !== harvest.year || apiHarvest.month !== harvest.month)
+  ) {
     throw new Error(
-      `Unreadable harvest date: ${apiResponse.Target_Harvest_Date}`,
+      `AI engine returned harvest ${apiResponse.Target_Harvest_Date}, expected ${ym(harvest.year, harvest.month)}. ` +
+        `Check that the crop life cycle in crop_lifecycle matches the model.`,
     );
   }
 
@@ -446,8 +530,6 @@ export async function applyNationalTarget(
         allowed_extent_ha: targetLimitHa,
         year: harvest.year,
         month: harvest.month,
-        target_harvest_date: apiResponse.Target_Harvest_Date,
-        planting_date: apiResponse.Planting_Date,
         target_fair_price: fair,
         estimated_wholesale_price: Number(
           apiResponse.Estimated_Wholesale_Price,
@@ -539,8 +621,35 @@ export const extendRegistration = (windowId: number, closesAt: Date) =>
     p_closes_at: closesAt.toISOString(),
   });
 
+/** Change the dates of a scheduled or open window (an open one keeps its start). */
+export const updateWindow = (windowId: number, opensAt: Date, closesAt: Date) =>
+  rpc("admin_update_window", {
+    p_window_id: windowId,
+    p_opens_at: opensAt.toISOString(),
+    p_closes_at: closesAt.toISOString(),
+  });
+
+/** Scheduled window → deleted; open window → closed now. */
+export const cancelWindow = (windowId: number) =>
+  rpc("admin_cancel_window", { p_window_id: windowId });
+
 export const setTargetActive = (targetId: number, active: boolean) =>
   rpc("admin_set_target_active", { p_target_id: targetId, p_active: active });
+
+/** crop_name → growth cycle in months, from `crop_lifecycle` (falls back to the model mirror). */
+export async function fetchCropCycles(): Promise<Record<string, number>> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("crop_lifecycle")
+    .select("crop_name, cycle_months");
+  if (error) throw error;
+  return {
+    ...CROP_CYCLE_FALLBACK,
+    ...Object.fromEntries(
+      (data ?? []).map((r) => [r.crop_name, Number(r.cycle_months)]),
+    ),
+  };
+}
 
 export async function fetchWindowHistory(
   targetId: number,
@@ -573,6 +682,59 @@ export async function fetchBucketStatus(
     fill_ratio: Number(r.fill_ratio),
   }));
 }
+
+const numOrNull = (v: unknown) =>
+  v === null || v === undefined ? null : Number(v);
+
+/** One row per target (R5). Use this for every list, card and chart. */
+export async function fetchTargetSummary(
+  includeAll = false,
+): Promise<TargetSummary[]> {
+  const rows = await rpc<TargetSummary[]>("get_target_summary", {
+    p_include_all: includeAll,
+  });
+  return (rows ?? []).map((r) => ({
+    ...r,
+    target_limit_mt: Number(r.target_limit_mt),
+    filled_mt: Number(r.filled_mt),
+    remaining_mt: Number(r.remaining_mt),
+    fill_ratio: Number(r.fill_ratio),
+    farmer_count: Number(r.farmer_count),
+    filled_ha: numOrNull(r.filled_ha),
+    allowed_extent_ha: numOrNull(r.allowed_extent_ha),
+    target_fair_price: numOrNull(r.target_fair_price),
+    estimated_wholesale_price: numOrNull(r.estimated_wholesale_price),
+    my_amount_mt: numOrNull(r.my_amount_mt),
+  }));
+}
+
+export const STATUS_LABEL: Record<TargetStatus, string> = {
+  open: "Open",
+  full: "Open · FULL",
+  scheduled: "Scheduled",
+  closed: "Closed",
+  inactive: "Inactive",
+};
+
+export const STATUS_COLOR: Record<TargetStatus, string> = {
+  open: "green",
+  full: "red",
+  scheduled: "blue",
+  closed: "orange",
+  inactive: "gray",
+};
+
+/** Health chip from the fill ratio: < 0.6 Healthy, 0.6–0.85 Watch, 0.85–1 Near limit, ≥ 1 Full. */
+export const healthOf = (
+  ratio: number,
+): { label: string; color: "green" | "yellow" | "orange" | "red" } =>
+  ratio >= 1
+    ? { label: "Full", color: "red" }
+    : ratio >= 0.85
+      ? { label: "Near limit", color: "orange" }
+      : ratio >= 0.6
+        ? { label: "Watch", color: "yellow" }
+        : { label: "Healthy", color: "green" };
 
 export const registerHarvest = (targetId: number, amountMt: number) =>
   rpc<RegisterResult>("register_harvest", {
@@ -697,18 +859,25 @@ export async function updateDieselPrice(value: number) {
 
 export function rpcMessage(r: RpcResult | null | undefined): string {
   if (!r) return "";
+  // Status first: the old admin_open_registration still says "Extend it instead",
+  // which is wrong now that scheduled windows can be edited or cancelled (B3).
+  if (r.status === "overlap") {
+    return "This target already has a window in that period. Edit or cancel that window (Windows list) instead.";
+  }
   if (r.message) return String(r.message);
   switch (r.status) {
     case "success":
       return "Done.";
-    case "overlap":
-      return "This target already has a window in that period. Extend the existing window instead.";
+    case "month_passed":
+      return "The registration month has already passed. Use a custom window.";
+    case "finished":
+      return "This window has already ended. Open a new one instead.";
     case "invalid_dates":
       return "Check the dates: closing must be after opening and in the future.";
     case "no_target":
       return "Target not found.";
     case "no_planting_date":
-      return "This target has no readable planting date — set custom dates.";
+      return "This target has no registration month yet — run the database migration (03_monthly_registration_fix.sql) or set custom dates.";
     case "not_open":
       return "Registration is not open right now.";
     case "not_found":

@@ -32,9 +32,15 @@ import {
   fetchAdvisoryQuota,
   applyNationalTarget,
   fetchDieselPrice,
-  defaultWindowFromPlanting,
+  fetchCropCycles,
+  harvestFromRegistration,
+  registrationMonthWindow,
+  monthIndex,
+  parseYearMonth,
+  ym,
   toLocalInput,
   formatDateTime,
+  monthName,
   rpcMessage,
   cropLabel,
   errorMessage,
@@ -42,6 +48,7 @@ import {
   SUPPORTED_CROPS,
   RAINFALL_NORMALS,
   DEFAULT_DIESEL_PRICE,
+  CROP_CYCLE_FALLBACK,
 } from "@/lib/services/quotaService";
 import ForecastGenerator from "@/components/Admin/ForecastGenerator";
 
@@ -117,13 +124,16 @@ const CheckOption = ({
 const DAY_MS = 86_400_000;
 
 function AITargets() {
+  const now = new Date();
   const [crop, setCrop] = useState("CARROT");
-  const [year, setYear] = useState(() => new Date().getFullYear());
-  const [month, setMonth] = useState(() => new Date().getMonth() + 1);
+  // The admin picks the REGISTRATION month (R2/R4); harvest is derived below.
+  const [regYear, setRegYear] = useState(() => now.getFullYear());
+  const [regMonth, setRegMonth] = useState(() => now.getMonth() + 1);
+  const [cycles, setCycles] =
+    useState<Record<string, number>>(CROP_CYCLE_FALLBACK);
   const [dieselPrice, setDieselPrice] = useState(DEFAULT_DIESEL_PRICE);
-  const [rainfall, setRainfall] = useState(
-    () => RAINFALL_NORMALS[new Date().getMonth() + 1],
-  );
+  const [rainfall, setRainfall] = useState<number>(0);
+  const [rainfallEdited, setRainfallEdited] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -139,11 +149,25 @@ function AITargets() {
   const [closesAt, setClosesAt] = useState("");
   const [notifyFarmers, setNotifyFarmers] = useState(true);
 
+  const cycle = cycles[crop] ?? 3;
+  const harvest = harvestFromRegistration(regYear, regMonth, cycle);
+  const isPast =
+    monthIndex(regYear, regMonth) <
+    monthIndex(now.getFullYear(), now.getMonth() + 1);
+
   useEffect(() => {
     fetchDieselPrice()
       .then(setDieselPrice)
       .catch(() => {});
+    fetchCropCycles()
+      .then(setCycles)
+      .catch(() => {}); // keep the model mirror
   }, []);
+
+  // The model's weather input is for the harvest month, so the default follows it.
+  useEffect(() => {
+    if (!rainfallEdited) setRainfall(RAINFALL_NORMALS[harvest.month]);
+  }, [harvest.month, rainfallEdited]);
 
   const clearMessages = () => {
     setError("");
@@ -151,34 +175,44 @@ function AITargets() {
     setWindowWarning("");
   };
 
-  const handleMonthChange = (value: number) => {
-    setMonth(value);
-    setRainfall(RAINFALL_NORMALS[value]);
-  };
-
   const handleAskAI = async () => {
+    if (isPast) {
+      setError("This registration month has passed — pick this month or later.");
+      return;
+    }
     setLoading(true);
     clearMessages();
     setApiResponse(null);
 
     try {
+      // The engine takes the REGISTRATION month and adds the cycle itself.
       const data = await fetchAdvisoryQuota({
         crop,
-        year,
-        month,
+        year: regYear,
+        month: regMonth,
         rainfall,
         dieselPrice,
       });
+
+      // Cross-check: the model's cycle must match crop_lifecycle (B9),
+      // otherwise the target would be filed under the wrong harvest month (B1).
+      const apiHarvest = parseYearMonth(data.Target_Harvest_Date);
+      if (
+        apiHarvest &&
+        (apiHarvest.year !== harvest.year || apiHarvest.month !== harvest.month)
+      ) {
+        throw new Error(
+          `AI engine returned harvest ${data.Target_Harvest_Date} but the ${cycle}-month cycle for ${crop} gives ${ym(harvest.year, harvest.month)}. Update crop_lifecycle to match the model before publishing.`,
+        );
+      }
+
       setApiResponse(data);
 
-      // Default window = the planting month; 30 days from now if that can't be used
-      const planting = defaultWindowFromPlanting(data.Planting_Date);
-      const now = new Date();
-      setOpensAt(toLocalInput(planting?.opensAt ?? now));
+      // Default window = the registration month the admin chose (B2), not the API date.
+      const w = registrationMonthWindow(regYear, regMonth);
+      setOpensAt(toLocalInput(w?.opensAt ?? now));
       setClosesAt(
-        toLocalInput(
-          planting?.closesAt ?? new Date(now.getTime() + 30 * DAY_MS),
-        ),
+        toLocalInput(w?.closesAt ?? new Date(now.getTime() + 30 * DAY_MS)),
       );
     } catch (err) {
       setError(errorMessage(err, "Failed to connect to AI advisory service."));
@@ -216,14 +250,24 @@ function AITargets() {
     clearMessages();
 
     try {
-      const { windowResult } = await applyNationalTarget(crop, apiResponse, {
-        rainfall,
-        dieselPrice,
-        window: regWindow,
-        notifyFarmers,
-      });
+      const { windowResult } = await applyNationalTarget(
+        crop,
+        harvest,
+        apiResponse,
+        {
+          rainfall,
+          dieselPrice,
+          window: regWindow
+            ? {
+                ...regWindow,
+                reason: `Registration month ${ym(regYear, regMonth)}`,
+              }
+            : null,
+          notifyFarmers,
+        },
+      );
 
-      const locked = `Successfully locked national quota for ${crop} (Target: ${apiResponse.Target_Harvest_Date}).`;
+      const locked = `Published ${crop} target for the ${monthName(harvest.year, harvest.month)} harvest (registration month ${monthName(regYear, regMonth)}).`;
 
       if (!regWindow) {
         setSuccessMsg(
@@ -361,8 +405,8 @@ function AITargets() {
                 </Text>
                 <Input
                   type="number"
-                  value={year}
-                  onChange={(e) => setYear(Number(e.target.value))}
+                  value={regYear}
+                  onChange={(e) => setRegYear(Number(e.target.value))}
                   bg="gray.50"
                   h="45px"
                 />
@@ -370,14 +414,12 @@ function AITargets() {
 
               <Stack gap={2}>
                 <Text fontSize="sm" fontWeight="bold" color="gray.700">
-                  Registration Window
+                  Registration Month
                 </Text>
                 <NativeSelect.Root variant="subtle">
                   <NativeSelect.Field
-                    value={month}
-                    onChange={(e) =>
-                      handleMonthChange(Number(e.currentTarget.value))
-                    }
+                    value={regMonth}
+                    onChange={(e) => setRegMonth(Number(e.currentTarget.value))}
                     bg="gray.50"
                     h="45px"
                   >
@@ -393,6 +435,12 @@ function AITargets() {
                 </NativeSelect.Root>
               </Stack>
             </SimpleGrid>
+
+            <Text fontSize="sm" color={isPast ? "red.600" : "gray.600"}>
+              {isPast
+                ? "This registration month has passed — pick this month or later."
+                : `Farmers register in ${monthName(regYear, regMonth)} → ${cropLabel(crop)} harvest ${monthName(harvest.year, harvest.month)} (${cycle}-month cycle)`}
+            </Text>
 
             <SimpleGrid columns={{ base: 1, md: 2 }} gap={5}>
               <Stack gap={2}>
@@ -410,18 +458,21 @@ function AITargets() {
 
               <Stack gap={2}>
                 <Text fontSize="sm" fontWeight="bold" color="gray.700">
-                  Expected Rainfall (mm)
+                  Expected Rainfall at Harvest (mm)
                 </Text>
                 <Input
                   type="number"
                   value={rainfall}
-                  onChange={(e) => setRainfall(Number(e.target.value))}
+                  onChange={(e) => {
+                    setRainfallEdited(true);
+                    setRainfall(Number(e.target.value));
+                  }}
                   bg="gray.50"
                   h="45px"
                 />
                 <Text fontSize="xs" color="gray.500">
-                  Defaults to the monthly normal ({RAINFALL_NORMALS[month]}{" "}
-                  mm).
+                  Defaults to the {monthName(harvest.year, harvest.month)}{" "}
+                  normal ({RAINFALL_NORMALS[harvest.month]} mm).
                 </Text>
               </Stack>
             </SimpleGrid>
@@ -434,6 +485,7 @@ function AITargets() {
               _hover={{ bg: "blue.700" }}
               onClick={handleAskAI}
               loading={loading}
+              disabled={loading || isPast}
               gap={2}
             >
               {loading ? (
@@ -467,18 +519,18 @@ function AITargets() {
                     REGISTRATION WINDOW
                   </Text>
                   <Text fontSize="md" fontWeight="bold" color="gray.800">
-                    {apiResponse.Planting_Date}
+                    {monthName(regYear, regMonth)}
                   </Text>
                 </VStack>
 
-                <Badge colorPalette="purple">Growth Lag Applied</Badge>
+                <Badge colorPalette="purple">{cycle}-month cycle</Badge>
 
                 <VStack align="end" gap={0}>
                   <Text fontSize="xs" color="gray.500" fontWeight="semibold">
                     TARGET MARKET HARVEST
                   </Text>
                   <Text fontSize="md" fontWeight="bold" color="blue.600">
-                    {apiResponse.Target_Harvest_Date}
+                    {monthName(harvest.year, harvest.month)}
                   </Text>
                 </VStack>
               </HStack>
@@ -633,9 +685,11 @@ function AITargets() {
                       </SimpleGrid>
 
                       <Text fontSize="xs" color="gray.600">
-                        Default: the planting month from the AI result. Farmers
-                        can register only between these times. If space is left
-                        after it closes, reopen it from Targets & Windows.
+                        Default: the whole registration month (
+                        {monthName(regYear, regMonth)}, Sri Lanka time), or from
+                        now if it has already started. Farmers can register only
+                        between these times. Edit, extend or cancel it later from
+                        Targets & Windows.
                       </Text>
 
                       <CheckOption

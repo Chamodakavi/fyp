@@ -16,8 +16,11 @@ import {
   SUPPORTED_CROPS,
   RAINFALL_NORMALS,
   DEFAULT_DIESEL_PRICE,
+  CROP_CYCLE_FALLBACK,
   fetchAdvisoryQuota,
   fetchDieselPrice,
+  fetchCropCycles,
+  harvestFromRegistration,
   saveForecast,
   updateDieselPrice,
   errorMessage,
@@ -34,6 +37,8 @@ function ForecastGenerator() {
   );
   const [months, setMonths] = useState(12);
   const [diesel, setDiesel] = useState(DEFAULT_DIESEL_PRICE);
+  const [cycles, setCycles] =
+    useState<Record<string, number>>(CROP_CYCLE_FALLBACK);
 
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(0);
@@ -45,6 +50,9 @@ function ForecastGenerator() {
   useEffect(() => {
     fetchDieselPrice()
       .then(setDiesel)
+      .catch(() => {});
+    fetchCropCycles()
+      .then(setCycles)
       .catch(() => {});
 
     // Stop the queue if the admin leaves the page mid-run
@@ -110,7 +118,14 @@ function ForecastGenerator() {
     const worker = async () => {
       while (next < jobs.length && !stopRef.current) {
         const job = jobs[next++];
-        const rainfall = RAINFALL_NORMALS[job.month];
+        // job.month is the registration month the engine expects; its weather
+        // input refers to the harvest month, so look the normal up there.
+        const harvest = harvestFromRegistration(
+          job.year,
+          job.month,
+          cycles[job.crop] ?? 3,
+        );
+        const rainfall = RAINFALL_NORMALS[harvest.month];
         try {
           const advisory = await fetchAdvisoryQuota({
             crop: job.crop,

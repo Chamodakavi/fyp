@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box,
   Container,
@@ -19,59 +19,63 @@ import {
   DoorOpen,
   DoorClosed,
   CalendarPlus,
+  CalendarX,
   Power,
   RefreshCw,
   History,
 } from "lucide-react";
 import {
-  fetchBucketStatus,
+  fetchTargetSummary,
   fetchWindowHistory,
   openPlantingMonth,
   openRegistration,
   closeRegistration,
-  extendRegistration,
+  updateWindow,
+  cancelWindow,
   setTargetActive,
   cropLabel,
-  monthName,
   formatDateTime,
   toLocalInput,
+  monthIndex,
   rpcMessage,
   errorMessage,
-  BucketStatus,
+  STATUS_LABEL,
+  STATUS_COLOR,
+  TargetSummary,
+  TargetStatus,
   RegistrationWindow,
   RpcResult,
 } from "@/lib/services/quotaService";
+import { groupBy } from "@/utils/groupBy";
 import FillBar from "@/components/quota/FillBar";
 
-type Filter = "all" | "open" | "upcoming" | "closed" | "inactive";
+type Filter = "all" | "open" | "scheduled" | "closed" | "inactive";
 
-const FILTERS: Filter[] = ["all", "open", "upcoming", "closed", "inactive"];
+const FILTERS: Filter[] = ["all", "open", "scheduled", "closed", "inactive"];
 const DAY_MS = 86_400_000;
 
-const statusOf = (
-  t: BucketStatus,
-): { label: string; color: string; key: Filter } => {
-  if (!t.is_active) return { label: "Inactive", color: "gray", key: "inactive" };
-  if (t.is_open && t.remaining_mt <= 0)
-    return { label: "Open · FULL", color: "red", key: "open" };
-  if (t.is_open) return { label: "Open", color: "green", key: "open" };
-  if (t.next_opens_at)
-    return { label: "Scheduled", color: "blue", key: "upcoming" };
-  return { label: "Closed", color: "orange", key: "closed" };
+const filterKey = (s: TargetStatus): Filter => (s === "full" ? "open" : s);
+
+/** The window that has not started yet (the one a "scheduled" status refers to). */
+const nextWindowOf = (windows: RegistrationWindow[] | null) => {
+  const now = Date.now();
+  return (
+    (windows ?? [])
+      .filter((w) => new Date(w.opens_at).getTime() > now)
+      .sort((a, b) => a.opens_at.localeCompare(b.opens_at))[0] ?? null
+  );
 };
 
 function TargetRow({
   target: t,
   onChanged,
 }: {
-  target: BucketStatus;
+  target: TargetSummary;
   onChanged: (text: string, ok: boolean) => void;
 }) {
-  const status = statusOf(t);
-
   const [busy, setBusy] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
-  const [showExtend, setShowExtend] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<RegistrationWindow[] | null>(null);
 
@@ -80,22 +84,39 @@ function TargetRow({
     toLocalInput(new Date(Date.now() + 14 * DAY_MS)),
   );
   const [reason, setReason] = useState("Reopened — space still available");
-  const [extendTo, setExtendTo] = useState(() =>
-    toLocalInput(
-      t.window_closes_at
-        ? new Date(new Date(t.window_closes_at).getTime() + 7 * DAY_MS)
-        : new Date(),
-    ),
-  );
 
-  const loadHistory = async () => {
+  // Edit-dates panel (open window: only the closing time can move)
+  const [editOpens, setEditOpens] = useState("");
+  const [editCloses, setEditCloses] = useState("");
+
+  const loadHistory = useCallback(async () => {
     try {
       setHistory(await fetchWindowHistory(t.target_id));
     } catch (e) {
       console.error("Error loading window history:", e);
       setHistory([]);
     }
-  };
+  }, [t.target_id]);
+
+  // A scheduled row needs its upcoming window's id for Edit / Cancel
+  useEffect(() => {
+    if (t.status === "scheduled" && history === null) loadHistory();
+  }, [t.status, history, loadHistory]);
+
+  const nextWindow = useMemo(() => nextWindowOf(history), [history]);
+  const editableWindowId =
+    t.status === "open" || t.status === "full"
+      ? t.current_window_id
+      : t.status === "scheduled"
+        ? (nextWindow?.id ?? null)
+        : null;
+
+  const now = new Date();
+  const registrationMonthPassed =
+    t.planting_year != null &&
+    t.planting_month != null &&
+    monthIndex(t.planting_year, t.planting_month) <
+      monthIndex(now.getFullYear(), now.getMonth() + 1);
 
   const run = async (action: () => Promise<RpcResult>, okText: string) => {
     setBusy(true);
@@ -104,7 +125,8 @@ function TargetRow({
       const ok = result.status === "success";
       if (ok) {
         setShowCustom(false);
-        setShowExtend(false);
+        setShowEdit(false);
+        setHistory(null);
         if (showHistory) await loadHistory();
       }
       onChanged(ok ? okText : rpcMessage(result), ok);
@@ -116,8 +138,25 @@ function TargetRow({
   };
 
   const toggleHistory = () => {
-    if (!showHistory) loadHistory();
+    if (!showHistory && history === null) loadHistory();
     setShowHistory((v) => !v);
+  };
+
+  const openEdit = () => {
+    const w =
+      t.status === "scheduled"
+        ? nextWindow
+        : { opens_at: t.window_opens_at!, closes_at: t.window_closes_at! };
+    if (!w) return;
+    setEditOpens(toLocalInput(new Date(w.opens_at)));
+    setEditCloses(
+      toLocalInput(
+        t.status === "scheduled"
+          ? new Date(w.closes_at)
+          : new Date(new Date(w.closes_at).getTime() + 7 * DAY_MS),
+      ),
+    );
+    setShowEdit((v) => !v);
   };
 
   const handleOpenCustom = () => {
@@ -129,19 +168,39 @@ function TargetRow({
     }
     run(
       () => openRegistration(t.target_id, o, c, reason.trim() || undefined),
-      `${t.crop_name}: registration window opened`,
+      `${t.crop_name} · ${t.harvest_label}: registration window opened`,
     );
   };
 
-  const handleExtend = () => {
-    const c = new Date(extendTo);
-    if (!t.current_window_id || Number.isNaN(c.getTime())) {
-      onChanged("Set the new closing time.", false);
+  const handleSaveEdit = () => {
+    const o = new Date(editOpens);
+    const c = new Date(editCloses);
+    if (
+      !editableWindowId ||
+      Number.isNaN(o.getTime()) ||
+      Number.isNaN(c.getTime())
+    ) {
+      onChanged("Set both dates.", false);
       return;
     }
     run(
-      () => extendRegistration(t.current_window_id!, c),
-      `${t.crop_name}: window extended`,
+      () => updateWindow(editableWindowId, o, c),
+      `${t.crop_name} · ${t.harvest_label}: window dates updated`,
+    );
+  };
+
+  const handleCancelWindow = () => {
+    if (!editableWindowId) return;
+    if (
+      !window.confirm(
+        `Cancel the scheduled registration window for ${t.crop_name} (${t.harvest_label} harvest)?`,
+      )
+    ) {
+      return;
+    }
+    run(
+      () => cancelWindow(editableWindowId),
+      `${t.crop_name} · ${t.harvest_label}: scheduled window cancelled`,
     );
   };
 
@@ -149,16 +208,18 @@ function TargetRow({
     if (
       t.is_active &&
       !window.confirm(
-        `Deactivate ${t.crop_name} (${monthName(t.year, t.month)})? Farmers will no longer see it and its registration window will close.`,
+        `Deactivate ${t.crop_name} (${t.harvest_label} harvest)? Farmers will no longer see it and its registration window will close.`,
       )
     ) {
       return;
     }
     run(
       () => setTargetActive(t.target_id, !t.is_active),
-      `${t.crop_name}: ${t.is_active ? "deactivated" : "activated"}`,
+      `${t.crop_name} · ${t.harvest_label}: ${t.is_active ? "deactivated" : "activated"}`,
     );
   };
+
+  const isOpen = t.status === "open" || t.status === "full";
 
   return (
     <Box
@@ -173,28 +234,31 @@ function TargetRow({
         <Box>
           <HStack gap={2}>
             <Text fontWeight="bold" fontSize="lg" color="gray.800">
-              {cropLabel(t.crop_name)}
+              {cropLabel(t.crop_name)} · harvest {t.harvest_label}
             </Text>
-            <Badge colorPalette={status.color} variant="solid">
-              {status.label}
+            <Badge colorPalette={STATUS_COLOR[t.status]} variant="solid">
+              {STATUS_LABEL[t.status]}
             </Badge>
           </HStack>
           <Text fontSize="sm" color="gray.600">
-            Harvest {monthName(t.year, t.month)} · plant{" "}
-            {t.planting_date ?? "—"} · fair Rs. {t.target_fair_price ?? "—"}/kg
+            Registration month {t.registration_label ?? "—"} · fair Rs.{" "}
+            {t.target_fair_price ?? "—"}/kg
           </Text>
         </Box>
 
         <Box textAlign="right" fontSize="sm">
-          {t.is_open && (
+          {isOpen && (
             <Text color="green.700">
               Open until <b>{formatDateTime(t.window_closes_at)}</b>
             </Text>
           )}
-          {!t.is_open && t.next_opens_at && (
+          {t.status === "scheduled" && (
             <Text color="blue.700">
               Opens {formatDateTime(t.next_opens_at)}
             </Text>
+          )}
+          {t.status === "closed" && registrationMonthPassed && (
+            <Text color="gray.500">Registration month has passed</Text>
           )}
         </Box>
       </Flex>
@@ -204,11 +268,17 @@ function TargetRow({
         <Text fontSize="sm" color="gray.600" mt={1}>
           {t.filled_mt} / {t.target_limit_mt} MT registered ·{" "}
           <b>{t.remaining_mt} MT left</b> · {t.farmer_count} farmers
+          {t.filled_ha != null && t.allowed_extent_ha != null && (
+            <>
+              {" "}
+              · ≈ {t.filled_ha} / {t.allowed_extent_ha} ha
+            </>
+          )}
         </Text>
       </Box>
 
       <HStack mt={4} gap={2} wrap="wrap">
-        {t.is_open ? (
+        {isOpen && (
           <>
             <Button
               size="sm"
@@ -218,7 +288,7 @@ function TargetRow({
               onClick={() =>
                 run(
                   () => closeRegistration(t.target_id),
-                  `${t.crop_name}: registration closed`,
+                  `${t.crop_name} · ${t.harvest_label}: registration closed`,
                 )
               }
             >
@@ -227,27 +297,54 @@ function TargetRow({
             <Button
               size="sm"
               variant="outline"
-              disabled={busy}
-              onClick={() => setShowExtend((v) => !v)}
+              disabled={busy || !editableWindowId}
+              onClick={openEdit}
             >
-              <CalendarPlus size={14} /> Extend
+              <CalendarPlus size={14} /> Extend / edit dates
             </Button>
           </>
-        ) : t.is_active ? (
+        )}
+
+        {t.status === "scheduled" && (
           <>
             <Button
               size="sm"
-              colorPalette="green"
-              disabled={busy}
-              onClick={() =>
-                run(
-                  () => openPlantingMonth(t.target_id),
-                  `${t.crop_name}: opened for the planting month`,
-                )
-              }
+              colorPalette="blue"
+              variant="outline"
+              disabled={busy || !editableWindowId}
+              onClick={openEdit}
             >
-              <DoorOpen size={14} /> Open planting month
+              <CalendarPlus size={14} /> Edit dates
             </Button>
+            <Button
+              size="sm"
+              colorPalette="red"
+              variant="outline"
+              disabled={busy || !editableWindowId}
+              onClick={handleCancelWindow}
+            >
+              <CalendarX size={14} /> Cancel window
+            </Button>
+          </>
+        )}
+
+        {t.status === "closed" && (
+          <>
+            {!registrationMonthPassed && t.planting_month != null && (
+              <Button
+                size="sm"
+                colorPalette="green"
+                disabled={busy}
+                onClick={() =>
+                  run(
+                    () => openPlantingMonth(t.target_id),
+                    `${t.crop_name} · ${t.harvest_label}: opened for ${t.registration_label}`,
+                  )
+                }
+              >
+                <DoorOpen size={14} /> Open registration month
+              </Button>
+            )}
             <Button
               size="sm"
               colorPalette="green"
@@ -259,7 +356,7 @@ function TargetRow({
               {t.filled_mt > 0 ? "Reopen…" : "Open custom…"}
             </Button>
           </>
-        ) : null}
+        )}
 
         <Button
           size="sm"
@@ -275,7 +372,7 @@ function TargetRow({
         </Button>
       </HStack>
 
-      {showCustom && !t.is_open && t.is_active && (
+      {showCustom && t.status === "closed" && (
         <Box mt={4} p={4} bg="green.50" borderRadius="lg">
           <SimpleGrid columns={{ base: 1, md: 3 }} gap={3}>
             <Box>
@@ -326,26 +423,45 @@ function TargetRow({
         </Box>
       )}
 
-      {showExtend && t.is_open && t.current_window_id && (
-        <HStack mt={4} p={4} bg="gray.50" borderRadius="lg" gap={3} wrap="wrap">
-          <Text fontSize="sm">New closing time</Text>
-          <Input
-            type="datetime-local"
-            size="sm"
-            w="auto"
-            bg="white"
-            value={extendTo}
-            onChange={(e) => setExtendTo(e.target.value)}
-          />
+      {showEdit && editableWindowId && (
+        <Box mt={4} p={4} bg="gray.50" borderRadius="lg">
+          <SimpleGrid columns={{ base: 1, md: 2 }} gap={3}>
+            <Box>
+              <Text fontSize="xs" mb={1}>
+                Opens{isOpen ? " (fixed — already open)" : ""}
+              </Text>
+              <Input
+                type="datetime-local"
+                size="sm"
+                bg="white"
+                value={editOpens}
+                disabled={isOpen}
+                onChange={(e) => setEditOpens(e.target.value)}
+              />
+            </Box>
+            <Box>
+              <Text fontSize="xs" mb={1}>
+                Closes
+              </Text>
+              <Input
+                type="datetime-local"
+                size="sm"
+                bg="white"
+                value={editCloses}
+                onChange={(e) => setEditCloses(e.target.value)}
+              />
+            </Box>
+          </SimpleGrid>
           <Button
+            mt={3}
             size="sm"
             colorPalette="blue"
             disabled={busy}
-            onClick={handleExtend}
+            onClick={handleSaveEdit}
           >
-            Save
+            Save dates
           </Button>
-        </HStack>
+        </Box>
       )}
 
       {showHistory && (
@@ -374,7 +490,7 @@ function TargetRow({
 }
 
 function TargetsManager() {
-  const [rows, setRows] = useState<BucketStatus[]>([]);
+  const [rows, setRows] = useState<TargetSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
@@ -383,7 +499,7 @@ function TargetsManager() {
   // Reloads keep the list on screen so open panels in each row aren't lost
   const load = useCallback(async () => {
     try {
-      setRows(await fetchBucketStatus(true));
+      setRows(await fetchTargetSummary(true));
     } catch (e) {
       console.error("Error loading targets:", e);
       setMsg({
@@ -399,16 +515,23 @@ function TargetsManager() {
     load();
   }, [load]);
 
-  const visible = rows
-    .filter((t) => filter === "all" || statusOf(t).key === filter)
-    .filter(
-      (t) =>
-        !search || t.crop_name.toLowerCase().includes(search.toLowerCase()),
-    )
-    .sort(
-      (a, b) =>
-        (b.year ?? 0) - (a.year ?? 0) || (b.month ?? 0) - (a.month ?? 0),
-    );
+  // One section per crop; inside it one row per harvest month, earliest first,
+  // so CARROT Feb / Mar / Apr 2027 appear as consecutive rows.
+  const groups = useMemo(() => {
+    const visible = rows
+      .filter((t) => filter === "all" || filterKey(t.status) === filter)
+      .filter(
+        (t) =>
+          !search || t.crop_name.toLowerCase().includes(search.toLowerCase()),
+      )
+      .sort(
+        (a, b) =>
+          a.crop_name.localeCompare(b.crop_name) ||
+          monthIndex(a.harvest_year, a.harvest_month) -
+            monthIndex(b.harvest_year, b.harvest_month),
+      );
+    return Object.entries(groupBy(visible, (t) => t.crop_name));
+  }, [rows, filter, search]);
 
   return (
     <Box bg="#F8FAFC" minH="100vh" p={{ base: 4, md: 8 }}>
@@ -418,8 +541,8 @@ function TargetsManager() {
             Targets & Registration Windows
           </Heading>
           <Text color="gray.500">
-            Open, close, extend or reopen farmer registration for each
-            national target.
+            One target per crop and harvest month. Open, close, edit or cancel
+            each target&apos;s registration window.
           </Text>
         </VStack>
 
@@ -467,7 +590,7 @@ function TargetsManager() {
           <Flex justify="center" p={10}>
             <Spinner color="blue.500" size="xl" />
           </Flex>
-        ) : visible.length === 0 ? (
+        ) : groups.length === 0 ? (
           <Box
             p={10}
             bg="white"
@@ -483,16 +606,32 @@ function TargetsManager() {
             </Text>
           </Box>
         ) : (
-          <VStack align="stretch" gap={4}>
-            {visible.map((t) => (
-              <TargetRow
-                key={t.target_id}
-                target={t}
-                onChanged={(text, ok) => {
-                  setMsg({ text, ok });
-                  load();
-                }}
-              />
+          <VStack align="stretch" gap={6}>
+            {groups.map(([crop, targets]) => (
+              <Box key={crop}>
+                <Text
+                  fontSize="xs"
+                  fontWeight="bold"
+                  color="gray.500"
+                  textTransform="uppercase"
+                  mb={2}
+                >
+                  {cropLabel(crop)} · {targets.length} harvest month
+                  {targets.length === 1 ? "" : "s"}
+                </Text>
+                <VStack align="stretch" gap={3}>
+                  {targets.map((t) => (
+                    <TargetRow
+                      key={t.target_id}
+                      target={t}
+                      onChanged={(text, ok) => {
+                        setMsg({ text, ok });
+                        load();
+                      }}
+                    />
+                  ))}
+                </VStack>
+              </Box>
             ))}
           </VStack>
         )}
